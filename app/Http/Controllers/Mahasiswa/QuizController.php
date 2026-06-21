@@ -1,0 +1,657 @@
+<?php
+
+namespace App\Http\Controllers\Mahasiswa;
+
+use App\Http\Controllers\Controller;
+use App\Models\CourseLesson;
+use App\Models\Quiz;
+use App\Models\QuizAttempt;
+use App\Models\UserLessonProgress;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+
+class QuizController extends Controller
+{
+    private const MAX_TOTAL_ATTEMPTS = 3;
+    public function instruction(Quiz $quiz)
+    {
+        $user = Auth::user();
+
+        $this->ensureMember($quiz);
+
+        if (! $this->isQuizUnlocked($quiz, $user->id)) {
+            return redirect()
+                ->route('mahasiswa.materi.index')
+                ->with('warning', 'Kuis masih terkunci. Selesaikan seluruh materi pada bab terkait terlebih dahulu.');
+        }
+
+        $quiz->load(['classGroup', 'module', 'questions']);
+
+        $inProgressAttempt = QuizAttempt::query()
+            ->where('quiz_id', $quiz->id)
+            ->where('user_id', $user->id)
+            ->where('status', 'in_progress')
+            ->latest()
+            ->first();
+
+        if ($inProgressAttempt && now()->gte($inProgressAttempt->expires_at)) {
+            $this->finalizeAttempt($inProgressAttempt, 'auto_submitted');
+            $inProgressAttempt = null;
+        }
+
+        $submittedAttempts = QuizAttempt::query()
+            ->where('quiz_id', $quiz->id)
+            ->where('user_id', $user->id)
+            ->whereIn('status', ['submitted', 'auto_submitted'])
+            ->orderBy('attempt_number')
+            ->get();
+
+        $latestAttempt = $submittedAttempts->sortByDesc('attempt_number')->first();
+        $passedAttempt = $submittedAttempts->firstWhere('is_passed', true);
+        $maxAttempts = self::MAX_TOTAL_ATTEMPTS;
+        $attemptsUsed = $submittedAttempts->count();
+        $remainingAttempts = max(0, $maxAttempts - $attemptsUsed);
+        $nextAttemptNumber = min($attemptsUsed + 1, $maxAttempts);
+        $canStartAttempt = ! $inProgressAttempt && ! $passedAttempt && $remainingAttempts > 0;
+
+        return view('mahasiswa.kuis.instruction', compact(
+            'quiz',
+            'inProgressAttempt',
+            'latestAttempt',
+            'passedAttempt',
+            'maxAttempts',
+            'attemptsUsed',
+            'remainingAttempts',
+            'nextAttemptNumber',
+            'canStartAttempt'
+        ));
+    }
+
+    public function start(Quiz $quiz)
+    {
+        $user = Auth::user();
+
+        $this->ensureMember($quiz);
+
+        if (! $this->isQuizUnlocked($quiz, $user->id)) {
+            return redirect()
+                ->route('mahasiswa.materi.index')
+                ->with('warning', 'Kuis masih terkunci.');
+        }
+
+        $quiz->load(['questions', 'classGroup']);
+
+        $inProgressAttempt = QuizAttempt::query()
+            ->where('quiz_id', $quiz->id)
+            ->where('user_id', $user->id)
+            ->where('status', 'in_progress')
+            ->latest()
+            ->first();
+
+        if ($inProgressAttempt) {
+            if (now()->lt($inProgressAttempt->expires_at)) {
+                return redirect()->route('mahasiswa.kuis.attempt', $inProgressAttempt);
+            }
+
+            $this->finalizeAttempt($inProgressAttempt, 'auto_submitted');
+        }
+
+        $submittedAttempts = QuizAttempt::query()
+            ->where('quiz_id', $quiz->id)
+            ->where('user_id', $user->id)
+            ->whereIn('status', ['submitted', 'auto_submitted'])
+            ->orderBy('attempt_number')
+            ->get();
+
+        $passedAttempt = $submittedAttempts->firstWhere('is_passed', true);
+
+        if ($passedAttempt) {
+            return redirect()
+                ->route('mahasiswa.kuis.result', $passedAttempt)
+                ->with('success', 'Anda sudah lulus kuis ini. Percobaan tambahan tidak diperlukan.');
+        }
+
+        $submittedCount = $submittedAttempts->count();
+
+        if ($submittedCount >= self::MAX_TOTAL_ATTEMPTS) {
+            $latestAttempt = $submittedAttempts->sortByDesc('attempt_number')->first();
+
+            return redirect()
+                ->route('mahasiswa.kuis.result', $latestAttempt)
+                ->with('warning', 'Batas total tiga percobaan kuis telah habis.');
+        }
+
+        $attempt = DB::transaction(function () use ($quiz, $user, $submittedCount) {
+            $attempt = QuizAttempt::create([
+                'quiz_id' => $quiz->id,
+                'class_group_id' => $quiz->class_group_id,
+                'user_id' => $user->id,
+                'attempt_number' => $submittedCount + 1,
+                'raw_score' => 0,
+                'score' => 0,
+                'max_score' => $quiz->questions->sum('points'),
+                'correct_answers' => 0,
+                'total_questions' => $quiz->questions->count(),
+                'duration_seconds' => 0,
+                'is_passed' => false,
+                'status' => 'in_progress',
+                'started_at' => now(),
+                'expires_at' => now()->addMinutes($quiz->duration_minutes),
+            ]);
+
+            foreach ($quiz->questions as $question) {
+                $attempt->responses()->create([
+                    'quiz_question_id' => $question->id,
+                    'response_value' => null,
+                    'canvas_data' => null,
+                    'is_marked_doubtful' => false,
+                    'is_answered' => false,
+                    'is_correct' => false,
+                    'points_earned' => 0,
+                    'feedback' => null,
+                ]);
+            }
+
+            return $attempt;
+        });
+
+        return redirect()->route('mahasiswa.kuis.attempt', $attempt);
+    }
+
+    public function attempt(QuizAttempt $attempt)
+    {
+        $this->ensureAttemptOwner($attempt);
+
+        if ($attempt->status !== 'in_progress') {
+            return redirect()->route('mahasiswa.kuis.result', $attempt);
+        }
+
+        if (now()->gte($attempt->expires_at)) {
+            $this->finalizeAttempt($attempt, 'auto_submitted');
+
+            return redirect()
+                ->route('mahasiswa.kuis.result', $attempt)
+                ->with('warning', 'Waktu kuis sudah habis. Jawaban dikumpulkan otomatis.');
+        }
+
+        $attempt->load([
+            'quiz.classGroup',
+            'quiz.module',
+            'quiz.questions',
+            'responses',
+        ]);
+
+        $responsesByQuestion = $attempt->responses->keyBy('quiz_question_id');
+
+        $remainingSeconds = max(0, (int) floor(now()->diffInSeconds($attempt->expires_at, false)));
+
+        return view('mahasiswa.kuis.attempt', compact(
+            'attempt',
+            'remainingSeconds',
+            'responsesByQuestion'
+        ));
+    }
+
+    public function save(Request $request, QuizAttempt $attempt)
+    {
+        $this->ensureAttemptOwner($attempt);
+
+        if ($attempt->status !== 'in_progress') {
+            return response()->json([
+                'saved' => false,
+                'message' => 'Attempt kuis sudah selesai.',
+            ], 409);
+        }
+
+        if (now()->gte($attempt->expires_at)) {
+            $this->finalizeAttempt($attempt, 'auto_submitted');
+
+            return response()->json([
+                'saved' => false,
+                'expired' => true,
+                'redirect' => route('mahasiswa.kuis.result', $attempt),
+                'message' => 'Waktu kuis sudah habis.',
+            ], 409);
+        }
+
+        $attempt->load(['quiz.questions']);
+
+        $responsesInput = $request->input('responses', []);
+
+        foreach ($attempt->quiz->questions as $question) {
+            $payload = $responsesInput[$question->id] ?? [];
+
+            if (! is_array($payload)) {
+                $payload = [];
+            }
+
+            unset($payload['step_file'], $payload['canvas_data']);
+
+            $attempt->responses()->updateOrCreate(
+                [
+                    'quiz_question_id' => $question->id,
+                ],
+                [
+                    'response_value' => $payload,
+                    'is_marked_doubtful' => (bool) ($payload['is_marked_doubtful'] ?? false),
+                    'is_answered' => $this->isAnswered($question, $payload),
+                ]
+            );
+        }
+
+        return response()->json([
+            'saved' => true,
+            'saved_at' => now()->format('H:i:s'),
+        ]);
+    }
+
+    public function submit(Request $request, QuizAttempt $attempt)
+    {
+        $this->ensureAttemptOwner($attempt);
+
+        $request->validate([
+            'responses.*.step_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
+        ]);
+
+        if ($attempt->status !== 'in_progress') {
+            return redirect()->route('mahasiswa.kuis.result', $attempt);
+        }
+
+        $attempt->load('quiz.questions');
+
+        $responsesInput = $request->input('responses', []);
+
+        foreach ($attempt->quiz->questions as $question) {
+            $payload = $responsesInput[$question->id] ?? [];
+
+            if (! is_array($payload)) {
+                $payload = [];
+            }
+
+            $existingResponse = $attempt->responses()
+                ->where('quiz_question_id', $question->id)
+                ->first();
+
+            $canvasData = $existingResponse?->canvas_data;
+
+            if ($request->hasFile("responses.{$question->id}.step_file")) {
+                $canvasData = $request
+                    ->file("responses.{$question->id}.step_file")
+                    ->store("quiz-step-files/attempt-{$attempt->id}", 'public');
+            }
+
+            unset($payload['canvas_data'], $payload['step_file']);
+
+            $attempt->responses()->updateOrCreate(
+                [
+                    'quiz_question_id' => $question->id,
+                ],
+                [
+                    'response_value' => $payload,
+                    'canvas_data' => $canvasData,
+                    'is_marked_doubtful' => (bool) ($payload['is_marked_doubtful'] ?? false),
+                    'is_answered' => $this->isAnswered($question, $payload),
+                ]
+            );
+        }
+
+        $status = $request->boolean('auto_submitted') || now()->gte($attempt->expires_at)
+            ? 'auto_submitted'
+            : 'submitted';
+
+        $attempt->refresh();
+        $this->finalizeAttempt($attempt, $status);
+
+        return redirect()
+            ->route('mahasiswa.kuis.result', $attempt)
+            ->with($status === 'auto_submitted' ? 'warning' : 'success', $status === 'auto_submitted'
+                ? 'Waktu habis. Kuis dikumpulkan otomatis.'
+                : 'Kuis berhasil dikumpulkan.');
+    }
+
+    public function result(QuizAttempt $attempt)
+    {
+        $this->ensureAttemptOwner($attempt);
+
+        $attempt->load([
+            'quiz.classGroup',
+            'quiz.module',
+            'quiz.questions',
+            'responses.question',
+        ]);
+
+        $maxAttempts = self::MAX_TOTAL_ATTEMPTS;
+        $hasPassedAttempt = QuizAttempt::query()
+            ->where('quiz_id', $attempt->quiz_id)
+            ->where('user_id', $attempt->user_id)
+            ->whereIn('status', ['submitted', 'auto_submitted'])
+            ->where('is_passed', true)
+            ->exists();
+
+        $canRemedial = ! $attempt->is_passed
+            && ! $hasPassedAttempt
+            && $attempt->attempt_number < $maxAttempts;
+
+        $nextAttemptNumber = min($attempt->attempt_number + 1, $maxAttempts);
+        $rawScore = $attempt->raw_score ?? $attempt->score;
+        $remedialScoreCapped = $attempt->attempt_number > 1
+            && $attempt->is_passed
+            && $rawScore > $attempt->score;
+
+        return view('mahasiswa.kuis.result', compact(
+            'attempt',
+            'maxAttempts',
+            'canRemedial',
+            'nextAttemptNumber',
+            'rawScore',
+            'remedialScoreCapped'
+        ));
+    }
+
+    private function ensureMember(Quiz $quiz): void
+    {
+        $isMember = Auth::user()
+            ->joinedClassGroups()
+            ->where('class_groups.id', $quiz->class_group_id)
+            ->exists();
+
+        abort_if(! $isMember, 403, 'Anda tidak memiliki akses ke kuis ini.');
+    }
+
+    private function ensureAttemptOwner(QuizAttempt $attempt): void
+    {
+        abort_if($attempt->user_id !== Auth::id(), 403, 'Anda tidak memiliki akses ke attempt kuis ini.');
+    }
+
+    private function isQuizUnlocked(Quiz $quiz, int $userId): bool
+    {
+        if ($quiz->type === 'evaluasi_akhir') {
+            $lessonIds = CourseLesson::pluck('id')->toArray();
+        } else {
+            if (! $quiz->course_module_id) {
+                return false;
+            }
+
+            $lessonIds = CourseLesson::where('course_module_id', $quiz->course_module_id)
+                ->pluck('id')
+                ->toArray();
+        }
+
+        if (empty($lessonIds)) {
+            return false;
+        }
+
+        $completedCount = UserLessonProgress::where('user_id', $userId)
+            ->whereIn('course_lesson_id', $lessonIds)
+            ->where('completed', true)
+            ->distinct()
+            ->count('course_lesson_id');
+
+        return $completedCount === count($lessonIds);
+    }
+
+    private function finalizeAttempt(QuizAttempt $attempt, string $status): void
+    {
+        if ($attempt->status !== 'in_progress') {
+            return;
+        }
+
+        $attempt->loadMissing([
+            'quiz.questions',
+            'responses',
+            'classGroup',
+        ]);
+
+        $responsesByQuestion = $attempt->responses->keyBy('quiz_question_id');
+
+        $rawScore = 0;
+        $correctAnswers = 0;
+        $totalQuestions = $attempt->quiz->questions->count();
+        $maxScore = $attempt->quiz->questions->sum('points');
+
+        foreach ($attempt->quiz->questions as $question) {
+            $response = $responsesByQuestion->get($question->id);
+            $payload = $response?->response_value ?? [];
+
+            if (! is_array($payload)) {
+                $payload = [];
+            }
+
+            $scored = $this->scoreQuestion($question, $payload);
+
+            if ($scored['is_correct']) {
+                $correctAnswers++;
+            }
+
+            $rawScore += $scored['points_earned'];
+
+            $attempt->responses()->updateOrCreate(
+                [
+                    'quiz_question_id' => $question->id,
+                ],
+                [
+                    'response_value' => $payload,
+                    'is_marked_doubtful' => (bool) ($payload['is_marked_doubtful'] ?? false),
+                    'is_answered' => $scored['is_answered'],
+                    'is_correct' => $scored['is_correct'],
+                    'points_earned' => $scored['points_earned'],
+                    'feedback' => $scored['feedback'],
+                ]
+            );
+        }
+
+        $durationSeconds = $attempt->started_at
+            ? $attempt->started_at->diffInSeconds(now())
+            : 0;
+
+        $kkm = (int) $attempt->classGroup->kkm;
+        $isPassed = $rawScore >= $kkm;
+        $recordedScore = $this->calculateRecordedScore(
+            $rawScore,
+            (int) $attempt->attempt_number,
+            $kkm
+        );
+
+        $attempt->update([
+            'raw_score' => $rawScore,
+            'score' => $recordedScore,
+            'max_score' => $maxScore,
+            'correct_answers' => $correctAnswers,
+            'total_questions' => $totalQuestions,
+            'duration_seconds' => $durationSeconds,
+            'is_passed' => $isPassed,
+            'status' => $status,
+            'submitted_at' => now(),
+        ]);
+    }
+
+    private function calculateRecordedScore(int $rawScore, int $attemptNumber, int $kkm): int
+    {
+        if ($attemptNumber > 1) {
+            return min($rawScore, $kkm);
+        }
+
+        return $rawScore;
+    }
+
+    private function scoreQuestion($question, array $payload): array
+    {
+        $isAnswered = $this->isAnswered($question, $payload);
+        $isCorrect = false;
+
+        switch ($question->question_type) {
+            case 'checkbox':
+                $selected = collect($payload['selected'] ?? [])
+                    ->map(fn ($item) => strtoupper(trim((string) $item)))
+                    ->sort()
+                    ->values()
+                    ->all();
+
+                $key = collect($question->answer_key['selected'] ?? [])
+                    ->map(fn ($item) => strtoupper(trim((string) $item)))
+                    ->sort()
+                    ->values()
+                    ->all();
+
+                $isCorrect = $selected === $key;
+                break;
+
+            case 'short_text':
+            case 'math_notation':
+                $answer = $this->normalizeText($payload['answer'] ?? '');
+
+                $acceptedAnswers = $question->accepted_answers
+                    ?: [$question->answer_key['answer'] ?? ''];
+
+                $acceptedAnswers = collect($acceptedAnswers)
+                    ->map(fn ($item) => $this->normalizeText($item))
+                    ->all();
+
+                $isCorrect = in_array($answer, $acceptedAnswers, true);
+                break;
+
+            case 'canvas_final_answer':
+                $finalAnswer = $payload['final'] ?? [];
+                $accepted = $question->accepted_answers ?? [];
+
+                $isCorrect = true;
+
+                foreach ($accepted as $field => $acceptedValues) {
+                    $studentValue = $this->normalizeScalar($finalAnswer[$field] ?? '');
+
+                    $normalizedAccepted = collect($acceptedValues)
+                        ->map(fn ($item) => $this->normalizeScalar($item))
+                        ->all();
+
+                    if (! in_array($studentValue, $normalizedAccepted, true)) {
+                        $isCorrect = false;
+                        break;
+                    }
+                }
+                break;
+
+            case 'matrix':
+            case 'augmented_matrix':
+                $isCorrect = $this->compareMatrix(
+                    $payload['matrix'] ?? [],
+                    $question->answer_key['matrix'] ?? []
+                );
+                break;
+
+            case 'matrix_equation':
+                $isCorrect = $this->compareMatrix(
+                    $payload['A'] ?? [],
+                    $question->answer_key['A'] ?? []
+                ) && $this->compareVector(
+                    $payload['b'] ?? [],
+                    $question->answer_key['b'] ?? []
+                );
+                break;
+        }
+
+        return [
+            'is_answered' => $isAnswered,
+            'is_correct' => $isCorrect,
+            'points_earned' => $isCorrect ? $question->points : 0,
+            'feedback' => $isCorrect
+                ? 'Jawaban benar.'
+                : 'Jawaban belum tepat. '.$question->explanation,
+        ];
+    }
+
+    private function isAnswered($question, array $payload): bool
+    {
+        return match ($question->question_type) {
+            'checkbox' => ! empty($payload['selected']),
+            'short_text', 'math_notation' => trim((string) ($payload['answer'] ?? '')) !== '',
+            'canvas_final_answer' => $this->hasAnyValue($payload['final'] ?? []),
+            'matrix', 'augmented_matrix' => $this->hasAnyValue($payload['matrix'] ?? []),
+            'matrix_equation' => $this->hasAnyValue($payload['A'] ?? []) || $this->hasAnyValue($payload['b'] ?? []),
+            default => false,
+        };
+    }
+
+    private function hasAnyValue($value): bool
+    {
+        if (is_array($value)) {
+            foreach ($value as $item) {
+                if ($this->hasAnyValue($item)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return trim((string) $value) !== '';
+    }
+
+    private function compareMatrix(array $studentMatrix, array $answerMatrix): bool
+    {
+        foreach ($answerMatrix as $rowIndex => $row) {
+            foreach ($row as $columnIndex => $expectedValue) {
+                $studentValue = $studentMatrix[$rowIndex][$columnIndex] ?? null;
+
+                if ($this->normalizeScalar($studentValue) !== $this->normalizeScalar($expectedValue)) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private function compareVector(array $studentVector, array $answerVector): bool
+    {
+        foreach ($answerVector as $index => $expectedValue) {
+            $studentValue = $studentVector[$index] ?? null;
+
+            if ($this->normalizeScalar($studentValue) !== $this->normalizeScalar($expectedValue)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function normalizeScalar($value): string
+    {
+        $value = trim((string) $value);
+        $value = str_replace(['−', '–', '—'], '-', $value);
+        $value = str_replace(',', '.', $value);
+
+        if ($value === '') {
+            return '';
+        }
+
+        if (is_numeric($value)) {
+            $number = (float) $value;
+
+            if (abs($number - round($number)) < 0.000001) {
+                return (string) (int) round($number);
+            }
+
+            return rtrim(rtrim(sprintf('%.10F', $number), '0'), '.');
+        }
+
+        return $this->normalizeText($value);
+    }
+
+    private function normalizeText($value): string
+    {
+        $value = strtolower(trim((string) $value));
+
+        $value = str_replace(
+            ['√', '−', '–', '—', '₁', '₂', '₃', '₄'],
+            ['sqrt', '-', '-', '-', '1', '2', '3', '4'],
+            $value
+        );
+
+        $value = str_replace(['_', '*', '(', ')'], '', $value);
+        $value = preg_replace('/\s+/', '', $value);
+        $value = str_replace('+-', '-', $value);
+
+        return $value;
+    }
+}
