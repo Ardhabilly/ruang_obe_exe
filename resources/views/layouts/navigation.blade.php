@@ -47,6 +47,11 @@
                             {{ request()->routeIs('dosen.kelas.*') ? 'bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-300/20' : 'text-slate-300 hover:bg-white/5 hover:text-white' }}">
                                 Kelas
                         </a>
+                        <a href="{{ route('dosen.kuis.index') }}"
+                           class="rounded-xl px-4 py-2 text-sm font-semibold transition
+                           {{ request()->routeIs('dosen.kuis.*') ? 'bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-300/20' : 'text-slate-300 hover:bg-white/5 hover:text-white' }}">
+                            Manajemen Kuis
+                        </a>
                     @endif
                 </div>
             </div>
@@ -92,6 +97,17 @@
                class="block rounded-xl bg-white/5 px-4 py-3 text-sm font-semibold text-slate-200">
                 Dashboard
             </a>
+            @if (auth()->user()->role === 'dosen')
+                <a href="{{ route('dosen.kelas.index') }}"
+                   class="block rounded-xl bg-white/5 px-4 py-3 text-sm font-semibold text-slate-200">
+                    Kelas
+                </a>
+
+                <a href="{{ route('dosen.kuis.index') }}"
+                   class="block rounded-xl bg-white/5 px-4 py-3 text-sm font-semibold text-slate-200">
+                    Manajemen Kuis
+                </a>
+            @endif
 
             <a href="{{ route('profile.edit') }}"
                class="block rounded-xl bg-white/5 px-4 py-3 text-sm font-semibold text-slate-200">

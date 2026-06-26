@@ -9,6 +9,7 @@ use App\Http\Controllers\Mahasiswa\ClassJoinController as MahasiswaClassJoinCont
 use App\Http\Controllers\Mahasiswa\CourseController as MahasiswaCourseController;
 use App\Http\Controllers\Mahasiswa\PracticeController as MahasiswaPracticeController;
 use App\Http\Controllers\Mahasiswa\QuizController as MahasiswaQuizController;
+use App\Http\Controllers\Dosen\QuizManagementController as DosenQuizManagementController;
 
 Route::view('/', 'welcome')->name('landing');
 
@@ -101,6 +102,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
             Route::patch('/kelas/{classGroup}/token', [DosenClassGroupController::class, 'regenerateToken'])
                 ->name('kelas.regenerate-token');
+            Route::get('/kuis', [DosenQuizManagementController::class, 'index'])
+                ->name('kuis.index');
+
+            Route::get('/kuis/buat', [DosenQuizManagementController::class, 'create'])
+                ->name('kuis.create');
+
+            Route::post('/kuis', [DosenQuizManagementController::class, 'store'])
+                ->name('kuis.store');
         });
 });
 
