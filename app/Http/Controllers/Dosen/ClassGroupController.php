@@ -88,7 +88,7 @@ class ClassGroupController extends Controller
                     ->count();
 
                 $needsRemedialCount = $latestAttemptsByQuiz
-                    ->filter(fn ($attempt) => ! $attempt->is_passed && (int) $attempt->attempt_number < 3)
+                    ->filter(fn ($attempt) => ! $attempt->is_passed)
                     ->count();
 
                 $unpassedQuizCount = $latestAttemptsByQuiz

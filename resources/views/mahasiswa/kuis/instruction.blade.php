@@ -25,7 +25,7 @@
                 </div>
             </section>
 
-            <section class="grid gap-5 md:grid-cols-4">
+            <section class="grid gap-5 md:grid-cols-3">
                 <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-5 backdrop-blur-xl">
                     <p class="text-sm text-slate-400">Soal</p>
                     <p class="mt-2 text-2xl font-black text-white">
@@ -46,13 +46,6 @@
                         {{ $quiz->classGroup->kkm }}
                     </p>
                 </div>
-
-                <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-5 backdrop-blur-xl">
-                    <p class="text-sm text-slate-400">Maks. Percobaan</p>
-                    <p class="mt-2 text-2xl font-black text-white">
-                        {{ $maxAttempts }}x
-                    </p>
-                </div>
             </section>
 
             @if ($passedAttempt)
@@ -64,28 +57,23 @@
                         <span class="font-black">{{ $passedAttempt->score }}/{{ $passedAttempt->max_score }}</span>.
 
                         @if ($passedAttempt->attempt_number === 1)
-                            Anda tidak perlu mengikuti remedial.
+                            Nilai tercatat sesuai dengan hasil percobaan pertama.
                         @else
                             Sesuai ketentuan remedial, nilai yang dicatat maksimal sebesar KKM kelas.
                         @endif
                     </p>
                 </section>
             @elseif ($latestAttempt)
-                <section class="rounded-[1.5rem] border {{ $remainingAttempts > 0 ? 'border-yellow-300/20 bg-yellow-400/10 text-yellow-100' : 'border-red-300/20 bg-red-400/10 text-red-100' }} p-5 text-sm leading-6">
-                    <p class="font-black">
-                        {{ $remainingAttempts > 0 ? 'Remedial diperlukan.' : 'Batas percobaan telah habis.' }}
-                    </p>
+                <section class="rounded-[1.5rem] border border-yellow-300/20 bg-yellow-400/10 p-5 text-sm leading-6 text-yellow-100">
+                    <p class="font-black">Remedial diperlukan.</p>
 
                     <p class="mt-2">
                         Percobaan ke-{{ $latestAttempt->attempt_number }} memperoleh nilai tercatat
                         <span class="font-black">{{ $latestAttempt->score }}/{{ $latestAttempt->max_score }}</span>,
                         sedangkan KKM kelas adalah <span class="font-black">{{ $quiz->classGroup->kkm }}</span>.
 
-                        @if ($remainingAttempts > 0)
-                            Anda wajib mengerjakan remedial. Sisa kesempatan: {{ $remainingAttempts }} dari {{ $maxAttempts }} percobaan total.
-                        @else
-                            Seluruh kesempatan remedial telah digunakan.
-                        @endif
+                        Anda dapat mengerjakan remedial kembali sampai nilai mencapai atau melampaui KKM.
+                        Apabila lulus melalui remedial, nilai yang dicatat maksimal sebesar KKM.
                     </p>
                 </section>
             @endif
@@ -105,8 +93,8 @@
                     </p>
 
                     <p class="mt-2">
-                        Jawaban pilihan dan isian disimpan otomatis. Jika halaman direfresh sebelum kuis dikumpulkan,
-                        file langkah pengerjaan perlu dipilih kembali sebelum menekan tombol kumpulkan.
+                        Jawaban pilihan, isian, dan langkah pengerjaan disimpan otomatis selama kuis berlangsung.
+                        Pastikan seluruh jawaban sudah terisi sebelum menekan tombol kumpulkan.
                     </p>
                 </div>
             </section>
@@ -118,10 +106,8 @@
                             Kuis sudah selesai
                         @elseif ($attemptsUsed === 0)
                             Siap memulai kuis?
-                        @elseif ($remainingAttempts > 0)
-                            Siap mengikuti remedial?
                         @else
-                            Kuis sudah selesai
+                            Siap mengikuti remedial?
                         @endif
                     </h2>
 
@@ -129,11 +115,9 @@
                         @if ($passedAttempt)
                             Anda telah memenuhi KKM pada percobaan ke-{{ $passedAttempt->attempt_number }}.
                         @elseif ($attemptsUsed === 0)
-                            Anda memiliki maksimal {{ $maxAttempts }} percobaan total bila diperlukan remedial.
-                        @elseif ($remainingAttempts > 0)
-                            Percobaan berikutnya: ke-{{ $nextAttemptNumber }} dari {{ $maxAttempts }}.
+                            Apabila nilai belum memenuhi KKM, remedial dapat dikerjakan sampai Anda lulus.
                         @else
-                            Tidak ada kesempatan percobaan tambahan.
+                            Percobaan berikutnya: ke-{{ $nextAttemptNumber }}. Remedial tersedia sampai nilai memenuhi KKM.
                         @endif
                     </p>
                 </div>
@@ -168,7 +152,7 @@
                         </form>
                     @elseif ($latestAttempt)
                         <a href="{{ route('mahasiswa.kuis.result', $latestAttempt) }}"
-                           class="rounded-2xl bg-red-400 px-5 py-3 text-sm font-black text-slate-950 shadow-lg shadow-red-500/20 hover:bg-red-300">
+                           class="rounded-2xl bg-red-400 px-5 py-3 text-sm font-black text-slate-950 shadow-lg shadow-red-300">
                             Lihat Hasil Terakhir
                         </a>
                     @endif

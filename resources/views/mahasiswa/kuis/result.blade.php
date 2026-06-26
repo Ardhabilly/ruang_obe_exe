@@ -21,9 +21,19 @@
 
             <section class="grid gap-5 md:grid-cols-4">
                 <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-5 backdrop-blur-xl">
-                    <p class="text-sm text-slate-400">Nilai</p>
+                    <p class="text-sm text-slate-400">Nilai tercatat</p>
                     <p class="mt-2 text-3xl font-black text-white">
                         {{ $attempt->score }}
+                    </p>
+                </div>
+
+                <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-5 backdrop-blur-xl">
+                    <p class="text-sm text-slate-400">Nilai asli</p>
+                    <p class="mt-2 text-3xl font-black text-white">
+                        {{ $rawScore }}
+                    </p>
+                    <p class="mt-1 text-xs font-semibold text-slate-400">
+                        {{ $attempt->correct_answers }}/{{ $attempt->total_questions }} jawaban benar
                     </p>
                 </div>
 
@@ -35,19 +45,38 @@
                 </div>
 
                 <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-5 backdrop-blur-xl">
-                    <p class="text-sm text-slate-400">Benar</p>
-                    <p class="mt-2 text-3xl font-black text-white">
-                        {{ $attempt->correct_answers }}/{{ $attempt->total_questions }}
-                    </p>
-                </div>
-
-                <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-5 backdrop-blur-xl">
                     <p class="text-sm text-slate-400">Status</p>
                     <p class="mt-2 text-2xl font-black {{ $attempt->is_passed ? 'text-green-300' : 'text-red-300' }}">
                         {{ $attempt->is_passed ? 'Lulus' : 'Belum Lulus' }}
                     </p>
                 </div>
             </section>
+
+            @if ($remedialScoreCapped)
+                <section class="rounded-[1.5rem] border border-cyan-300/20 bg-cyan-400/10 p-5 text-sm leading-6 text-cyan-100">
+                    <p class="font-black">Nilai remedial dicatat sesuai KKM.</p>
+                    <p class="mt-2">
+                        Nilai mentah Anda adalah <span class="font-black">{{ $rawScore }}</span>.
+                        Karena kelulusan diperoleh melalui remedial, nilai tercatat ditetapkan sebesar
+                        KKM, yaitu <span class="font-black">{{ $attempt->score }}</span>.
+                    </p>
+                </section>
+            @elseif ($canRemedial)
+                <section class="rounded-[1.5rem] border border-yellow-300/20 bg-yellow-400/10 p-5 text-sm leading-6 text-yellow-100">
+                    <p class="font-black">Remedial masih tersedia.</p>
+                    <p class="mt-2">
+                        Nilai Anda belum mencapai KKM. Anda dapat mengikuti remedial ke-{{ $nextAttemptNumber }}
+                        dan mengulang sampai nilai memenuhi KKM.
+                    </p>
+                </section>
+            @elseif ($attempt->is_passed)
+                <section class="rounded-[1.5rem] border border-green-300/20 bg-green-400/10 p-5 text-sm leading-6 text-green-100">
+                    <p class="font-black">Kuis telah selesai.</p>
+                    <p class="mt-2">
+                        Anda telah memenuhi KKM. Percobaan tambahan tidak diperlukan.
+                    </p>
+                </section>
+            @endif
 
             <section class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-6 backdrop-blur-xl">
                 <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -61,10 +90,19 @@
                         </p>
                     </div>
 
-                    <a href="{{ route('mahasiswa.materi.index') }}"
-                       class="rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-black text-slate-950 hover:bg-cyan-300">
-                        Kembali ke Materi
-                    </a>
+                    <div class="flex flex-wrap gap-3">
+                        <a href="{{ route('mahasiswa.materi.index') }}"
+                           class="rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-black text-slate-950 hover:bg-cyan-300">
+                            Kembali ke Materi
+                        </a>
+
+                        @if ($canRemedial)
+                            <a href="{{ route('mahasiswa.kuis.instruction', $attempt->quiz) }}"
+                               class="rounded-2xl bg-yellow-400 px-5 py-3 text-sm font-black text-slate-950 hover:bg-yellow-300">
+                                Ikuti Remedial Ke-{{ $nextAttemptNumber }}
+                            </a>
+                        @endif
+                    </div>
                 </div>
 
                 <div class="mt-6 space-y-4">
@@ -89,6 +127,7 @@
                             <div class="mt-4 rounded-xl border border-white/10 bg-white/5 p-4 text-sm leading-6 {{ $response->is_correct ? 'text-green-200' : 'text-red-200' }}">
                                 {{ $response->feedback }}
                             </div>
+
                             @if ($response->canvas_data && $response->question->question_type === 'canvas_final_answer')
                                 <div class="mt-4 rounded-xl border border-cyan-300/20 bg-cyan-400/10 p-4">
                                     <p class="text-sm font-black text-cyan-100">
@@ -111,5 +150,6 @@
             </section>
         </div>
     </div>
+
     <script defer src="https://cdn.jsdelivr.net/npm/mathlive"></script>
 </x-app-layout>

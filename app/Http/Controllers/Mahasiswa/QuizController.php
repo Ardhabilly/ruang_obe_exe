@@ -13,7 +13,6 @@ use Illuminate\Support\Facades\DB;
 
 class QuizController extends Controller
 {
-    private const MAX_TOTAL_ATTEMPTS = 3;
     public function instruction(Quiz $quiz)
     {
         $user = Auth::user();
@@ -49,20 +48,21 @@ class QuizController extends Controller
 
         $latestAttempt = $submittedAttempts->sortByDesc('attempt_number')->first();
         $passedAttempt = $submittedAttempts->firstWhere('is_passed', true);
-        $maxAttempts = self::MAX_TOTAL_ATTEMPTS;
         $attemptsUsed = $submittedAttempts->count();
-        $remainingAttempts = max(0, $maxAttempts - $attemptsUsed);
-        $nextAttemptNumber = min($attemptsUsed + 1, $maxAttempts);
-        $canStartAttempt = ! $inProgressAttempt && ! $passedAttempt && $remainingAttempts > 0;
+        $nextAttemptNumber = $attemptsUsed + 1;
+
+        /*
+        | Mahasiswa dapat mengulang kuis selama belum memenuhi KKM.
+        | Percobaan tambahan ditutup hanya setelah terdapat satu percobaan lulus.
+        */
+        $canStartAttempt = ! $inProgressAttempt && ! $passedAttempt;
 
         return view('mahasiswa.kuis.instruction', compact(
             'quiz',
             'inProgressAttempt',
             'latestAttempt',
             'passedAttempt',
-            'maxAttempts',
             'attemptsUsed',
-            'remainingAttempts',
             'nextAttemptNumber',
             'canStartAttempt'
         ));
@@ -112,15 +112,11 @@ class QuizController extends Controller
                 ->with('success', 'Anda sudah lulus kuis ini. Percobaan tambahan tidak diperlukan.');
         }
 
+        /*
+        | Tidak ada batas jumlah remedial. Mahasiswa dapat memulai
+        | percobaan baru sampai memperoleh nilai minimal sebesar KKM.
+        */
         $submittedCount = $submittedAttempts->count();
-
-        if ($submittedCount >= self::MAX_TOTAL_ATTEMPTS) {
-            $latestAttempt = $submittedAttempts->sortByDesc('attempt_number')->first();
-
-            return redirect()
-                ->route('mahasiswa.kuis.result', $latestAttempt)
-                ->with('warning', 'Batas total tiga percobaan kuis telah habis.');
-        }
 
         $attempt = DB::transaction(function () use ($quiz, $user, $submittedCount) {
             $attempt = QuizAttempt::create([
@@ -328,19 +324,20 @@ class QuizController extends Controller
             'responses.question',
         ]);
 
-        $maxAttempts = self::MAX_TOTAL_ATTEMPTS;
-        $hasPassedAttempt = QuizAttempt::query()
+        $attemptHistory = QuizAttempt::query()
             ->where('quiz_id', $attempt->quiz_id)
             ->where('user_id', $attempt->user_id)
             ->whereIn('status', ['submitted', 'auto_submitted'])
-            ->where('is_passed', true)
-            ->exists();
+            ->get(['attempt_number', 'is_passed']);
 
-        $canRemedial = ! $attempt->is_passed
-            && ! $hasPassedAttempt
-            && $attempt->attempt_number < $maxAttempts;
+        $hasPassedAttempt = $attemptHistory
+            ->contains(fn (QuizAttempt $item) => (bool) $item->is_passed);
 
-        $nextAttemptNumber = min($attempt->attempt_number + 1, $maxAttempts);
+        /*
+        | Remedial selalu tersedia selama belum ada satu pun percobaan lulus.
+        */
+        $canRemedial = ! $hasPassedAttempt;
+        $nextAttemptNumber = ((int) $attemptHistory->max('attempt_number')) + 1;
         $rawScore = $attempt->raw_score ?? $attempt->score;
         $remedialScoreCapped = $attempt->attempt_number > 1
             && $attempt->is_passed
@@ -348,7 +345,6 @@ class QuizController extends Controller
 
         return view('mahasiswa.kuis.result', compact(
             'attempt',
-            'maxAttempts',
             'canRemedial',
             'nextAttemptNumber',
             'rawScore',
@@ -475,8 +471,13 @@ class QuizController extends Controller
 
     private function calculateRecordedScore(int $rawScore, int $attemptNumber, int $kkm): int
     {
-        if ($attemptNumber > 1) {
-            return min($rawScore, $kkm);
+        /*
+        | Percobaan pertama mencatat nilai asli.
+        | Saat lulus melalui remedial, nilai tercatat maksimal sebesar KKM.
+        | Percobaan remedial yang belum lulus tetap menyimpan nilai mentahnya.
+        */
+        if ($attemptNumber > 1 && $rawScore >= $kkm) {
+            return $kkm;
         }
 
         return $rawScore;
