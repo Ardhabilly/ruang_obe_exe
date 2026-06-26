@@ -111,7 +111,7 @@ class CourseController extends Controller
         $requiredPractices = $this->requiredPractices($lesson->slug);
 
         $completedPracticeKeys = $practiceSubmissions
-            ->where('is_completed', true)
+            ->filter(fn (PracticeSubmission $submission) => $this->isPracticeCompletionValid($submission))
             ->keys()
             ->toArray();
 
@@ -189,7 +189,8 @@ class CourseController extends Controller
         if (! empty($requiredPractices)) {
             $completedPracticeKeys = PracticeSubmission::where('user_id', $user->id)
                 ->where('course_lesson_id', $lesson->id)
-                ->where('is_completed', true)
+                ->get()
+                ->filter(fn (PracticeSubmission $submission) => $this->isPracticeCompletionValid($submission))
                 ->pluck('practice_key')
                 ->toArray();
 
@@ -274,11 +275,63 @@ class CourseController extends Controller
         return $accessibleLessonIds;
     }
 
+    private function isPracticeCompletionValid(PracticeSubmission $submission): bool
+    {
+        if (! $submission->is_completed) {
+            return false;
+        }
+
+        $componentAttemptPracticeKeys = [
+            'aktivitas-1-1',
+            'cek-pemahaman-1-2',
+            'aktivitas-1-2-server',
+            'cek-pemahaman-1-3',
+            'aktivitas-1-3-solusi',
+            'contoh-simulasi-1-4-perhitungan',
+            'cek-pemahaman-1-4-metode',
+            'contoh-simulasi-1-4-matriks-a',
+            'contoh-simulasi-1-4-ax-b',
+            'cek-pemahaman-1-4-ax-b',
+            'contoh-simulasi-1-4-augmented',
+            'cek-pemahaman-1-4-terjemahan-matriks',
+            'aktivitas-1-4-matriks',
+        ];
+
+        if (! in_array($submission->practice_key, $componentAttemptPracticeKeys, true)) {
+            return true;
+        }
+
+        $feedback = is_array($submission->feedback) ? $submission->feedback : [];
+
+        return ($feedback['_meta']['attempt_scope'] ?? null) === 'component';
+    }
+
     private function requiredPractices(string $lessonSlug): array
     {
         return match ($lessonSlug) {
             'pengertian-sistem-persamaan-linear' => [
                 'aktivitas-1-1' => 'Aktivitas 1.1 - Laboratorium Validasi Aljabar',
+            ],
+
+            'bentuk-umum-sistem-persamaan-linear' => [
+                'cek-pemahaman-1-2' => 'Cek Pemahaman Bentuk Umum Sistem Persamaan Linear',
+                'aktivitas-1-2-server' => 'Aktivitas 1.2 Pemodelan Alokasi Sumber Daya Server',
+            ],
+
+            'kemungkinan-solusi-sistem-persamaan-linear' => [
+                'cek-pemahaman-1-3' => 'Cek Pemahaman Kemungkinan Solusi Sistem Persamaan Linear',
+                'aktivitas-1-3-solusi' => 'Aktivitas 1.3 Analisis Skenario Solusi di Dunia Nyata',
+            ],
+
+            'metode-penyelesaian-spl-menuju-representasi-matriks' => [
+                'contoh-simulasi-1-4-perhitungan' => 'Contoh Simulasi 1.4 Penyelesaian SPL Skala Kecil',
+                'cek-pemahaman-1-4-metode' => 'Cek Pemahaman Keterbatasan Metode Dasar',
+                'contoh-simulasi-1-4-matriks-a' => 'Contoh Simulasi Matriks Koefisien A',
+                'contoh-simulasi-1-4-ax-b' => 'Contoh Simulasi Persamaan Matriks Ax = b',
+                'cek-pemahaman-1-4-ax-b' => 'Cek Pemahaman Notasi Ax = b',
+                'contoh-simulasi-1-4-augmented' => 'Contoh Simulasi Augmented Matrix',
+                'cek-pemahaman-1-4-terjemahan-matriks' => 'Cek Pemahaman Terjemahan Augmented Matrix',
+                'aktivitas-1-4-matriks' => 'Aktivitas 1.4 Pemodelan Matriks pada Kasus Komputasi Dunia Nyata',
             ],
 
             default => [],

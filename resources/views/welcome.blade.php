@@ -91,7 +91,7 @@
                     <p class="mt-6 max-w-2xl text-base leading-8 text-slate-300 sm:text-lg">
                         RuangOBE membantu mahasiswa memahami Sistem Persamaan Linear,
                         Operasi Baris Elementer, Eliminasi Gauss, dan Gauss-Jordan melalui
-                        materi bertahap, latihan wajib, kuis berbasis kelas, serta learning analytics.
+                        materi bertahap, latihan wajib, serta kuis berbasis kelas.
                     </p>
 
                     <div class="mt-9 flex flex-col gap-3 sm:flex-row">
@@ -248,9 +248,9 @@
                             03
                         </div>
 
-                        <h3 class="mt-5 text-xl font-black text-white">
+                        {{-- <h3 class="mt-5 text-xl font-black text-white">
                             Learning Analytics
-                        </h3>
+                        </h3> --}}
 
                         <p class="mt-3 text-sm leading-6 text-slate-400">
                             Progress materi, nilai latihan, nilai kuis, dan aktivitas mahasiswa dapat dipantau oleh dosen.

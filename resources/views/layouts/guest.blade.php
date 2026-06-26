@@ -21,7 +21,6 @@
     </div>
 
     <main class="relative z-10 min-h-screen">
-        <x-flash-popup />
         
         {{ $slot }}
     </main>

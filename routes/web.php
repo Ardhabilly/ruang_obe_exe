@@ -45,7 +45,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
             Route::post('/materi/{lesson:slug}/latihan/{practiceKey}', [MahasiswaPracticeController::class, 'submit'])
                 ->name('practice.submit');
-            
+
             Route::get('/kuis/{quiz}/instruksi', [MahasiswaQuizController::class, 'instruction'])
                 ->name('kuis.instruction');
 
@@ -71,7 +71,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->group(function () {
             Route::get('/dashboard', [DosenDashboardController::class, 'index'])
                 ->name('dashboard');
-            
+
             Route::get('/kelas', [DosenClassGroupController::class, 'index'])
                 ->name('kelas.index');
 
@@ -83,6 +83,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
             Route::get('/kelas/{classGroup}', [DosenClassGroupController::class, 'show'])
                 ->name('kelas.show');
+
+            Route::get('/kelas/{classGroup}/mahasiswa/{student}/riwayat-kuis', [DosenClassGroupController::class, 'studentQuizHistory'])
+                ->name('kelas.mahasiswa.riwayat');
+
+            Route::get('/kelas/{classGroup}/hasil-kuis/{attempt}', [DosenClassGroupController::class, 'quizAttemptDetail'])
+                ->name('kelas.kuis.detail');
 
             Route::get('/kelas/{classGroup}/edit', [DosenClassGroupController::class, 'edit'])
                 ->name('kelas.edit');

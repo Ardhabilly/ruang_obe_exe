@@ -10,61 +10,224 @@ use Illuminate\Support\Facades\Auth;
 
 class PracticeController extends Controller
 {
+    private const MAX_ATTEMPTS_PER_COMPONENT = 3;
+
     public function submit(Request $request, CourseLesson $lesson, string $practiceKey)
     {
         $request->validate([
-            'answers' => ['required', 'array'],
+            'answers' => ['nullable', 'array'],
         ]);
 
         $practice = $this->getPracticeDefinition($practiceKey);
 
         abort_if(! $practice, 404, 'Latihan tidak ditemukan.');
 
-        $answers = $request->input('answers', []);
-        $errors = [];
+        $submission = PracticeSubmission::query()
+            ->where('user_id', Auth::id())
+            ->where('course_lesson_id', $lesson->id)
+            ->where('practice_key', $practiceKey)
+            ->first();
 
-        foreach ($practice['questions'] as $key => $question) {
-            if (! isset($answers[$key]) || trim((string) $answers[$key]) === '') {
-                $errors["answers.$key"] = 'Bagian ini wajib diisi.';
-            }
+        $submittedAnswers = $request->input('answers', []);
+        $submittedAnswers = is_array($submittedAnswers)
+            ? $submittedAnswers
+            : [];
+
+        $storedAnswers = is_array($submission?->answers) ? $submission->answers : [];
+        $storedFeedback = is_array($submission?->feedback) ? $submission->feedback : [];
+
+        $previousFields = is_array($storedFeedback['fields'] ?? null)
+            ? $storedFeedback['fields']
+            : collect($storedFeedback)
+                ->except(['_meta', 'groups', 'fields'])
+                ->filter(fn ($item) => is_array($item))
+                ->all();
+
+        $previousMeta = is_array($storedFeedback['_meta'] ?? null)
+            ? $storedFeedback['_meta']
+            : [];
+
+        $previousGroups = is_array($previousMeta['groups'] ?? null)
+            ? $previousMeta['groups']
+            : [];
+
+        /*
+        | Revisi ini mengubah aturan kesempatan dari per nomor soal menjadi
+        | per komponen pembelajaran. Riwayat dengan format lama diabaikan
+        | saat mahasiswa melakukan pemeriksaan berikutnya agar perhitungan
+        | dimulai dari aturan yang baru.
+        */
+        $usesComponentAttemptScope = ($previousMeta['attempt_scope'] ?? null) === 'component';
+
+        if (! $usesComponentAttemptScope) {
+            $storedAnswers = [];
+            $previousFields = [];
+            $previousGroups = [];
+            $previousMeta = [];
         }
 
-        if (! empty($errors)) {
+        $previousAttempts = max(
+            0,
+            min(
+                self::MAX_ATTEMPTS_PER_COMPONENT,
+                (int) ($previousMeta['attempts'] ?? 0)
+            )
+        );
+
+        $previousComponentStatus = $previousMeta['status'] ?? null;
+
+        if (in_array($previousComponentStatus, ['passed', 'assisted'], true)) {
             return back()
                 ->withInput()
-                ->withErrors($errors)
-                ->with('warning', 'Lengkapi semua jawaban latihan terlebih dahulu.');
+                ->with(
+                    'practice_modal',
+                    $this->buildModalPayload(
+                        $practiceKey,
+                        $practice,
+                        $previousGroups,
+                        $previousAttempts,
+                        true,
+                        $previousComponentStatus,
+                    )
+                );
         }
 
-        $feedback = [];
-        $correct = 0;
-        $total = count($practice['questions']);
+        $answers = $storedAnswers;
+        $fields = [];
+        $groups = [];
+        $hasEmptyAnswer = false;
 
-        foreach ($practice['questions'] as $key => $question) {
-            $studentAnswer = $this->normalize($answers[$key] ?? '');
+        foreach ($practice['groups'] as $groupKey => $groupDefinition) {
+            $fieldKeys = $groupDefinition['fields'];
+            $groupAllCorrect = true;
 
-            $acceptedAnswers = collect($question['accepted_answers'])
-                ->map(fn ($answer) => $this->normalize($answer))
-                ->toArray();
+            foreach ($fieldKeys as $fieldKey) {
+                $question = $practice['questions'][$fieldKey];
+                $previousField = is_array($previousFields[$fieldKey] ?? null)
+                    ? $previousFields[$fieldKey]
+                    : [];
 
-            $isCorrect = in_array($studentAnswer, $acceptedAnswers, true);
+                $fieldWasCorrect = ! empty($previousField['is_correct'])
+                    && empty($previousField['is_revealed']);
 
-            if ($isCorrect) {
-                $correct++;
+                $answer = $fieldWasCorrect
+                    ? ($answers[$fieldKey] ?? $previousField['answer'] ?? '')
+                    : ($submittedAnswers[$fieldKey] ?? '');
+
+                $answers[$fieldKey] = $answer;
+
+                $isEmpty = $this->isAnswerEmpty(
+                    $answer,
+                    $question['input_type'] ?? 'text'
+                );
+
+                if ($isEmpty) {
+                    $hasEmptyAnswer = true;
+                }
+
+                $evaluated = $this->evaluateField($question, $answer);
+
+                if (! $evaluated['is_correct']) {
+                    $groupAllCorrect = false;
+                }
+
+                $fields[$fieldKey] = $this->buildFieldFeedback(
+                    $question,
+                    $answer,
+                    $isEmpty
+                        ? 'empty'
+                        : ($evaluated['is_correct'] ? 'correct' : 'wrong'),
+                    false,
+                    $evaluated['option_statuses']
+                );
             }
 
-            $feedback[$key] = [
-                'is_correct' => $isCorrect,
-                'answer' => $answers[$key] ?? '',
-                'message' => $isCorrect
-                    ? $question['feedback_correct']
-                    : $question['feedback_wrong'],
+            $groups[$groupKey] = [
+                'number' => $groupDefinition['number'],
+                'status' => $groupAllCorrect ? 'passed' : 'in_progress',
+                'points' => (int) ($groupDefinition['points'] ?? 0),
+                'is_assisted' => false,
             ];
         }
 
-        $score = $total > 0
-            ? round(($correct / $total) * $practice['max_score'])
-            : 0;
+        $allGroupsPassed = collect($groups)
+            ->every(fn (array $group) => ($group['status'] ?? null) === 'passed');
+
+        $attempts = $previousAttempts;
+        $componentStatus = 'in_progress';
+        $isCompleted = false;
+
+        if ($allGroupsPassed) {
+            $componentStatus = 'passed';
+            $isCompleted = true;
+        } elseif ($hasEmptyAnswer) {
+            $componentStatus = 'incomplete';
+        } else {
+            $attempts++;
+
+            if ($attempts >= self::MAX_ATTEMPTS_PER_COMPONENT) {
+                $componentStatus = 'assisted';
+                $isCompleted = true;
+
+                foreach ($practice['groups'] as $groupKey => $groupDefinition) {
+                    if (($groups[$groupKey]['status'] ?? null) === 'passed') {
+                        continue;
+                    }
+
+                    $groups[$groupKey]['status'] = 'assisted';
+                    $groups[$groupKey]['is_assisted'] = true;
+
+                    foreach ($groupDefinition['fields'] as $fieldKey) {
+                        $question = $practice['questions'][$fieldKey];
+                        $field = $fields[$fieldKey] ?? [];
+
+                        if (! empty($field['is_correct']) && empty($field['is_revealed'])) {
+                            continue;
+                        }
+
+                        $revealedAnswer = $this->correctAnswerValue($question);
+
+                        $answers[$fieldKey] = $revealedAnswer;
+                        $fields[$fieldKey] = $this->buildFieldFeedback(
+                            $question,
+                            $revealedAnswer,
+                            'revealed',
+                            true,
+                            $this->revealedOptionStatuses($question)
+                        );
+                    }
+                }
+            }
+        }
+
+        $score = collect($groups)
+            ->filter(fn (array $group) => ($group['status'] ?? null) === 'passed')
+            ->sum(fn (array $group) => (int) ($group['points'] ?? 0));
+
+        if ((int) ($practice['max_score'] ?? 0) === 0) {
+            $score = 0;
+        }
+
+        $assistedGroups = collect($groups)
+            ->filter(fn (array $group) => ($group['status'] ?? null) === 'assisted')
+            ->keys()
+            ->values()
+            ->all();
+
+        $feedback = [
+            'fields' => $fields,
+            '_meta' => [
+                'attempt_scope' => 'component',
+                'max_attempts' => self::MAX_ATTEMPTS_PER_COMPONENT,
+                'attempts' => $attempts,
+                'status' => $componentStatus,
+                'groups' => $groups,
+                'completion_mode' => $isCompleted
+                    ? (empty($assistedGroups) ? 'mandiri' : 'bantuan')
+                    : null,
+                'assisted_groups' => $assistedGroups,
+            ],
+        ];
 
         PracticeSubmission::updateOrCreate(
             [
@@ -79,59 +242,1172 @@ class PracticeController extends Controller
                 'feedback' => $feedback,
                 'score' => $score,
                 'max_score' => $practice['max_score'],
-                'is_completed' => true,
+                'is_completed' => $isCompleted,
                 'submitted_at' => now(),
             ]
         );
 
-        return back()->with('success', 'Jawaban latihan berhasil diperiksa dan disimpan.');
+        /*
+        | Tiga studi kasus Aktivitas 1.4 sekarang diperiksa satu per satu
+        | sesuai tombol pada modul. Rekap parent tetap diperbarui agar aturan
+        | progres subbab yang sebelumnya memakai practice key lama tetap berjalan.
+        */
+        if ($this->isSubbab14ActivityCase($practiceKey)) {
+            $this->syncSubbab14ActivitySummary($lesson);
+        }
+
+        return back()
+            ->withInput()
+            ->with(
+                'practice_modal',
+                $this->buildModalPayload(
+                    $practiceKey,
+                    $practice,
+                    $groups,
+                    $attempts,
+                    $isCompleted,
+                    $componentStatus,
+                )
+            );
+    }
+
+    private function isSubbab14ActivityCase(string $practiceKey): bool
+    {
+        return in_array($practiceKey, [
+            'aktivitas-1-4-kasus-1',
+            'aktivitas-1-4-kasus-2',
+            'aktivitas-1-4-kasus-3',
+        ], true);
+    }
+
+    private function syncSubbab14ActivitySummary(CourseLesson $lesson): void
+    {
+        $caseDefinitions = [
+            'aktivitas-1-4-kasus-1' => ['number' => 1, 'points' => 34],
+            'aktivitas-1-4-kasus-2' => ['number' => 2, 'points' => 33],
+            'aktivitas-1-4-kasus-3' => ['number' => 3, 'points' => 33],
+        ];
+
+        $caseSubmissions = PracticeSubmission::query()
+            ->where('user_id', Auth::id())
+            ->where('course_lesson_id', $lesson->id)
+            ->whereIn('practice_key', array_keys($caseDefinitions))
+            ->get()
+            ->keyBy('practice_key');
+
+        $answers = [];
+        $fields = [];
+        $groups = [];
+        $assistedGroups = [];
+        $score = 0;
+        $allCasesCompleted = true;
+        $hasAssistedCase = false;
+
+        foreach ($caseDefinitions as $caseKey => $definition) {
+            $caseSubmission = $caseSubmissions->get($caseKey);
+            $caseFeedback = is_array($caseSubmission?->feedback)
+                ? $caseSubmission->feedback
+                : [];
+
+            $caseAnswers = is_array($caseSubmission?->answers)
+                ? $caseSubmission->answers
+                : [];
+
+            $caseFields = is_array($caseFeedback['fields'] ?? null)
+                ? $caseFeedback['fields']
+                : collect($caseFeedback)
+                    ->except(['_meta', 'groups', 'fields'])
+                    ->filter(fn ($item) => is_array($item))
+                    ->all();
+
+            $caseMeta = is_array($caseFeedback['_meta'] ?? null)
+                ? $caseFeedback['_meta']
+                : [];
+
+            $isCompleted = (bool) ($caseSubmission?->is_completed ?? false);
+            $isAssisted = $isCompleted
+                && ($caseMeta['completion_mode'] ?? null) === 'bantuan';
+
+            $answers = array_replace($answers, $caseAnswers);
+            $fields = array_replace($fields, $caseFields);
+            $score += (int) ($caseSubmission?->score ?? 0);
+            $allCasesCompleted = $allCasesCompleted && $isCompleted;
+            $hasAssistedCase = $hasAssistedCase || $isAssisted;
+
+            $groupKey = 'q' . $definition['number'];
+            $groups[$groupKey] = [
+                'number' => $definition['number'],
+                'status' => $isCompleted
+                    ? ($isAssisted ? 'assisted' : 'passed')
+                    : 'in_progress',
+                'points' => $definition['points'],
+                'is_assisted' => $isAssisted,
+            ];
+
+            if ($isAssisted) {
+                $assistedGroups[] = $groupKey;
+            }
+        }
+
+        $componentStatus = $allCasesCompleted
+            ? ($hasAssistedCase ? 'assisted' : 'passed')
+            : 'in_progress';
+
+        PracticeSubmission::updateOrCreate(
+            [
+                'user_id' => Auth::id(),
+                'course_lesson_id' => $lesson->id,
+                'practice_key' => 'aktivitas-1-4-matriks',
+            ],
+            [
+                'title' => 'Aktivitas 1.4 Pemodelan Matriks pada Kasus Komputasi Dunia Nyata',
+                'type' => 'aktivitas',
+                'answers' => $answers,
+                'feedback' => [
+                    'fields' => $fields,
+                    '_meta' => [
+                        'attempt_scope' => 'component',
+                        'max_attempts' => self::MAX_ATTEMPTS_PER_COMPONENT,
+                        'attempts' => 0,
+                        'status' => $componentStatus,
+                        'groups' => $groups,
+                        'completion_mode' => $allCasesCompleted
+                            ? ($hasAssistedCase ? 'bantuan' : 'mandiri')
+                            : null,
+                        'assisted_groups' => $assistedGroups,
+                    ],
+                ],
+                'score' => $score,
+                'max_score' => 100,
+                'is_completed' => $allCasesCompleted,
+                'submitted_at' => now(),
+            ]
+        );
+    }
+
+    private function buildModalPayload(
+        string $practiceKey,
+        array $practice,
+        array $groups,
+        int $attempts,
+        bool $isCompleted,
+        string $componentStatus,
+    ): array {
+        $baseTitle = match ($practice['type'] ?? '') {
+            'aktivitas' => 'Aktivitas',
+            'contoh_simulasi' => 'Contoh Simulasi',
+            default => 'Cek Pemahaman',
+        };
+
+        $assisted = $componentStatus === 'assisted';
+        $incomplete = $componentStatus === 'incomplete';
+        $attemptScopeLabel = $this->isSubbab14ActivityCase($practiceKey)
+            ? 'kasus ini'
+            : 'seluruh ' . strtolower($baseTitle);
+
+        $unfinishedNumbers = collect($groups)
+            ->filter(fn (array $group) => ! in_array($group['status'] ?? null, ['passed'], true))
+            ->map(fn (array $group) => $group['number'] ?? null)
+            ->filter()
+            ->values()
+            ->all();
+
+        $groupMessage = empty($unfinishedNumbers)
+            ? null
+            : 'Bagian yang masih perlu diperbaiki: nomor ' . implode(', ', $unfinishedNumbers) . '.';
+
+        if ($isCompleted) {
+            return [
+                'practice_key' => $practiceKey,
+                'status' => $assisted ? 'assisted' : 'success',
+                'title' => $assisted
+                    ? "{$baseTitle} Selesai dengan Bantuan"
+                    : "{$baseTitle} Selesai",
+                'message' => $assisted
+                    ? 'Tiga kesempatan untuk ' . $attemptScopeLabel . ' telah digunakan. Jawaban yang belum tepat telah ditampilkan pada kolom terkait.'
+                    : 'Semua jawaban telah benar. Anda dapat melanjutkan ke tahap berikutnya.',
+                'button_label' => 'Tutup',
+                'feedback_messages' => array_values(array_filter([
+                    $assisted ? 'Poin hanya diberikan pada soal aktivitas yang selesai benar secara mandiri.' : null,
+                ])),
+            ];
+        }
+
+        if ($incomplete) {
+            return [
+                'practice_key' => $practiceKey,
+                'status' => 'incomplete',
+                'title' => 'Jawaban Belum Lengkap',
+                'message' => 'Lengkapi bagian berwarna kuning terlebih dahulu. Kolom yang belum diisi tidak mengurangi kesempatan.',
+                'button_label' => 'Kembali Mengisi',
+                'feedback_messages' => [],
+            ];
+        }
+
+        $remainingAttempts = max(0, self::MAX_ATTEMPTS_PER_COMPONENT - $attempts);
+
+        return [
+            'practice_key' => $practiceKey,
+            'status' => 'revision',
+            'title' => 'Jawaban Perlu Diperbaiki',
+            'message' => 'Periksa kembali jawaban berwarna merah dan baca umpan balik di bawah kolom terkait. Kesempatan tersisa untuk ' . $attemptScopeLabel . ': ' . $remainingAttempts . ' dari ' . self::MAX_ATTEMPTS_PER_COMPONENT . '.',
+            'button_label' => 'Perbaiki Jawaban',
+            'feedback_messages' => array_values(array_filter([$groupMessage])),
+        ];
+    }
+
+    private function buildFieldFeedback(array $question, mixed $answer, string $state, bool $revealed = false, array $optionStatuses = []): array
+    {
+        $isCorrect = in_array($state, ['correct', 'revealed'], true);
+
+        $feedback = [
+            'is_correct' => $isCorrect,
+            'is_revealed' => $revealed,
+            'state' => $state,
+            'answer' => $answer,
+            'correct_answer' => $this->correctAnswerValue($question),
+            'message' => match ($state) {
+                'revealed' => 'Jawaban benar ditampilkan setelah tiga kesempatan. Pelajari kembali alasan jawaban ini sebelum melanjutkan.',
+                'empty' => 'Bagian ini belum diisi. Lengkapi jawaban terlebih dahulu, kemudian lakukan pemeriksaan kembali.',
+                'correct' => $question['feedback_correct'],
+                default => $question['feedback_wrong'],
+            },
+        ];
+
+        if (($question['input_type'] ?? 'text') === 'checkbox') {
+            $feedback['option_statuses'] = $optionStatuses;
+        }
+
+        return $feedback;
+    }
+
+    private function evaluateField(array $question, mixed $answer): array
+    {
+        $inputType = $question['input_type'] ?? 'text';
+
+        if ($inputType === 'checkbox') {
+            $selected = $this->normalizeMultiple($answer);
+            $accepted = $this->normalizeMultiple($question['accepted_answers']);
+
+            return [
+                'is_correct' => $selected === $accepted,
+                'option_statuses' => $this->optionStatuses($answer, $question['accepted_answers']),
+            ];
+        }
+
+        $studentAnswer = $this->normalize($answer);
+        $acceptedAnswers = collect($question['accepted_answers'])
+            ->map(fn ($accepted) => $this->normalize($accepted))
+            ->all();
+
+        return [
+            'is_correct' => in_array($studentAnswer, $acceptedAnswers, true),
+            'option_statuses' => [],
+        ];
+    }
+
+    private function optionStatuses(mixed $selectedValue, array $acceptedAnswers): array
+    {
+        $selected = is_array($selectedValue) ? $selectedValue : [];
+        $normalizedSelected = $this->normalizeMultiple($selected);
+        $normalizedAccepted = $this->normalizeMultiple($acceptedAnswers);
+
+        $optionKeys = array_values(array_unique(array_merge(
+            array_map(fn ($item) => (string) $item, $selected),
+            array_map(fn ($item) => (string) $item, $acceptedAnswers)
+        )));
+
+        $statuses = [];
+
+        foreach ($optionKeys as $optionKey) {
+            $normalized = $this->normalize($optionKey);
+            $isChecked = in_array($normalized, $normalizedSelected, true);
+            $shouldBeChecked = in_array($normalized, $normalizedAccepted, true);
+
+            $statuses[$optionKey] = [
+                'is_checked' => $isChecked,
+                'should_be_checked' => $shouldBeChecked,
+
+                /*
+                | Jangan memberi penanda pada opsi benar yang belum dipilih.
+                | Dengan begitu, mahasiswa tidak dapat menebak jawaban dari warna
+                | sebelum sistem menampilkan bantuan pada kesempatan terakhir.
+                */
+                'state' => $isChecked
+                    ? ($shouldBeChecked ? 'correct' : 'wrong')
+                    : 'neutral',
+            ];
+        }
+
+        return $statuses;
+    }
+
+    private function revealedOptionStatuses(array $question): array
+    {
+        if (($question['input_type'] ?? 'text') !== 'checkbox') {
+            return [];
+        }
+
+        return collect($question['accepted_answers'])
+            ->mapWithKeys(fn ($option) => [(string) $option => [
+                'is_checked' => true,
+                'should_be_checked' => true,
+                'state' => 'revealed',
+            ]])
+            ->all();
+    }
+
+    private function isAnswerEmpty(mixed $answer, string $inputType): bool
+    {
+        if ($inputType === 'checkbox') {
+            return ! is_array($answer)
+                || count(array_filter($answer, fn ($item) => trim((string) $item) !== '')) === 0;
+        }
+
+        return trim((string) $answer) === '';
+    }
+
+    private function correctAnswerValue(array $question): mixed
+    {
+        if (($question['input_type'] ?? 'text') === 'checkbox') {
+            return $question['accepted_answers'];
+        }
+
+        return $question['display_answer'] ?? ($question['accepted_answers'][0] ?? '');
+    }
+
+    private function getSubbab14ActivityCaseDefinition(string $practiceKey): ?array
+    {
+        $questions = [
+            'game_a11' => ['accepted_answers' => ['3'], 'display_answer' => '3', 'feedback_correct' => 'Benar. Satu Pedang membutuhkan 3 Besi.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Besi untuk Pedang.'],
+            'game_a12' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar. Satu Pedang membutuhkan 1 Perak.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Perak untuk Pedang.'],
+            'game_a13' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar. Satu Pedang tidak membutuhkan Emas.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Emas untuk Pedang.'],
+            'game_a21' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar. Satu Perisai membutuhkan 2 Besi.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Besi untuk Perisai.'],
+            'game_a22' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar. Satu Perisai membutuhkan 2 Perak.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Perak untuk Perisai.'],
+            'game_a23' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar. Satu Perisai membutuhkan 1 Emas.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Emas untuk Perisai.'],
+            'game_a31' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar. Satu Zirah tidak membutuhkan Besi.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Besi untuk Zirah.'],
+            'game_a32' => ['accepted_answers' => ['4'], 'display_answer' => '4', 'feedback_correct' => 'Benar. Satu Zirah membutuhkan 4 Perak.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Perak untuk Zirah.'],
+            'game_a33' => ['accepted_answers' => ['3'], 'display_answer' => '3', 'feedback_correct' => 'Benar. Satu Zirah membutuhkan 3 Emas.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Emas untuk Zirah.'],
+            'game_b1' => ['accepted_answers' => ['50'], 'display_answer' => '50', 'feedback_correct' => 'Benar. Harga jual Pedang adalah 50 koin.', 'feedback_wrong' => 'Belum tepat. Lihat harga jual Pedang.'],
+            'game_b2' => ['accepted_answers' => ['80'], 'display_answer' => '80', 'feedback_correct' => 'Benar. Harga jual Perisai adalah 80 koin.', 'feedback_wrong' => 'Belum tepat. Lihat harga jual Perisai.'],
+            'game_b3' => ['accepted_answers' => ['120'], 'display_answer' => '120', 'feedback_correct' => 'Benar. Harga jual Zirah adalah 120 koin.', 'feedback_wrong' => 'Belum tepat. Lihat harga jual Zirah.'],
+
+            'cloud_a11' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar. Basic memakai 2 core CPU.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan CPU server Basic.'],
+            'cloud_a12' => ['accepted_answers' => ['4'], 'display_answer' => '4', 'feedback_correct' => 'Benar. Pro memakai 4 core CPU.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan CPU server Pro.'],
+            'cloud_a13' => ['accepted_answers' => ['8'], 'display_answer' => '8', 'feedback_correct' => 'Benar. Enterprise memakai 8 core CPU.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan CPU server Enterprise.'],
+            'cloud_b1' => ['accepted_answers' => ['64'], 'display_answer' => '64', 'feedback_correct' => 'Benar. Total CPU yang disewa adalah 64 core.', 'feedback_wrong' => 'Belum tepat. Lihat total CPU yang disebutkan.'],
+            'cloud_a21' => ['accepted_answers' => ['4'], 'display_answer' => '4', 'feedback_correct' => 'Benar. Basic memakai 4 GB RAM.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan RAM server Basic.'],
+            'cloud_a22' => ['accepted_answers' => ['16'], 'display_answer' => '16', 'feedback_correct' => 'Benar. Pro memakai 16 GB RAM.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan RAM server Pro.'],
+            'cloud_a23' => ['accepted_answers' => ['32'], 'display_answer' => '32', 'feedback_correct' => 'Benar. Enterprise memakai 32 GB RAM.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan RAM server Enterprise.'],
+            'cloud_b2' => ['accepted_answers' => ['200'], 'display_answer' => '200', 'feedback_correct' => 'Benar. Total RAM yang disewa adalah 200 GB.', 'feedback_wrong' => 'Belum tepat. Lihat total RAM yang disebutkan.'],
+            'cloud_a31' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar. Basic memakai 1 TB Storage.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Storage server Basic.'],
+            'cloud_a32' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar. Pro memakai 1 TB Storage.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Storage server Pro.'],
+            'cloud_a33' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar. Enterprise memakai 2 TB Storage.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Storage server Enterprise.'],
+            'cloud_b3' => ['accepted_answers' => ['20'], 'display_answer' => '20', 'feedback_correct' => 'Benar. Total Storage yang disewa adalah 20 TB.', 'feedback_wrong' => 'Belum tepat. Lihat total Storage yang disebutkan.'],
+
+            'debug_pernyataan' => [
+                'input_type' => 'checkbox',
+                'accepted_answers' => ['debug_a', 'debug_c'],
+                'feedback_correct' => 'Benar. Kesalahan terjadi pada Baris 1 dan Baris 3. Baris 2 sudah memuat koefisien yang sesuai.',
+                'feedback_wrong' => 'Belum tepat. Bandingkan setiap koefisien x, y, z, dan konstanta pada SPL asli dengan matriks input Programmer Junior.',
+            ],
+            'debug_a11' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar. Koefisien x pada Baris 1 adalah 1.', 'feedback_wrong' => 'Belum tepat. Variabel x tanpa angka memiliki koefisien 1.'],
+            'debug_a12' => ['accepted_answers' => ['-3'], 'display_answer' => '-3', 'feedback_correct' => 'Benar. Koefisien y pada Baris 1 adalah -3.', 'feedback_wrong' => 'Belum tepat. Perhatikan tanda negatif di depan 3y.'],
+            'debug_a13' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar. Variabel z tidak muncul pada Baris 1, sehingga koefisiennya 0.', 'feedback_wrong' => 'Belum tepat. Variabel z tidak muncul pada Baris 1.'],
+            'debug_b1' => ['accepted_answers' => ['5'], 'display_answer' => '5', 'feedback_correct' => 'Benar. Konstanta pada Baris 1 adalah 5.', 'feedback_wrong' => 'Belum tepat. Lihat ruas kanan Baris 1.'],
+            'debug_a21' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar. Koefisien x pada Baris 2 adalah 2.', 'feedback_wrong' => 'Belum tepat. Lihat koefisien x pada Baris 2.'],
+            'debug_a22' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar. Variabel y tanpa angka memiliki koefisien 1.', 'feedback_wrong' => 'Belum tepat. Variabel y tanpa angka memiliki koefisien 1.'],
+            'debug_a23' => ['accepted_answers' => ['4'], 'display_answer' => '4', 'feedback_correct' => 'Benar. Koefisien z pada Baris 2 adalah 4.', 'feedback_wrong' => 'Belum tepat. Lihat koefisien z pada Baris 2.'],
+            'debug_b2' => ['accepted_answers' => ['10'], 'display_answer' => '10', 'feedback_correct' => 'Benar. Konstanta pada Baris 2 adalah 10.', 'feedback_wrong' => 'Belum tepat. Lihat ruas kanan Baris 2.'],
+            'debug_a31' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar. Variabel x tidak muncul pada Baris 3, sehingga koefisiennya 0.', 'feedback_wrong' => 'Belum tepat. Variabel x tidak muncul pada Baris 3.'],
+            'debug_a32' => ['accepted_answers' => ['-1'], 'display_answer' => '-1', 'feedback_correct' => 'Benar. Koefisien y pada Baris 3 adalah -1.', 'feedback_wrong' => 'Belum tepat. Perhatikan tanda negatif di depan y.'],
+            'debug_a33' => ['accepted_answers' => ['5'], 'display_answer' => '5', 'feedback_correct' => 'Benar. Koefisien z pada Baris 3 adalah 5.', 'feedback_wrong' => 'Belum tepat. Lihat koefisien z pada Baris 3.'],
+            'debug_b3' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar. Konstanta pada Baris 3 adalah 2.', 'feedback_wrong' => 'Belum tepat. Lihat ruas kanan Baris 3.'],
+        ];
+
+        return match ($practiceKey) {
+            'aktivitas-1-4-kasus-1' => [
+                'title' => 'Aktivitas 1.4 - Kasus 1: Keseimbangan Ekonomi pada Game Development',
+                'type' => 'aktivitas',
+                'max_score' => 34,
+                'groups' => [
+                    'q1' => [
+                        'number' => 1,
+                        'fields' => [
+                            'game_a11', 'game_a12', 'game_a13',
+                            'game_a21', 'game_a22', 'game_a23',
+                            'game_a31', 'game_a32', 'game_a33',
+                            'game_b1', 'game_b2', 'game_b3',
+                        ],
+                        'points' => 34,
+                    ],
+                ],
+                'questions' => $questions,
+            ],
+            'aktivitas-1-4-kasus-2' => [
+                'title' => 'Aktivitas 1.4 - Kasus 2: Pemodelan Resource pada Cloud Computing',
+                'type' => 'aktivitas',
+                'max_score' => 33,
+                'groups' => [
+                    'q1' => [
+                        'number' => 2,
+                        'fields' => [
+                            'cloud_a11', 'cloud_a12', 'cloud_a13', 'cloud_b1',
+                            'cloud_a21', 'cloud_a22', 'cloud_a23', 'cloud_b2',
+                            'cloud_a31', 'cloud_a32', 'cloud_a33', 'cloud_b3',
+                        ],
+                        'points' => 33,
+                    ],
+                ],
+                'questions' => $questions,
+            ],
+            'aktivitas-1-4-kasus-3' => [
+                'title' => 'Aktivitas 1.4 - Kasus 3: Debugging Input Matriks',
+                'type' => 'aktivitas',
+                'max_score' => 33,
+                'groups' => [
+                    'q1' => [
+                        'number' => 3,
+                        'fields' => [
+                            'debug_pernyataan',
+                            'debug_a11', 'debug_a12', 'debug_a13', 'debug_b1',
+                            'debug_a21', 'debug_a22', 'debug_a23', 'debug_b2',
+                            'debug_a31', 'debug_a32', 'debug_a33', 'debug_b3',
+                        ],
+                        'points' => 33,
+                    ],
+                ],
+                'questions' => $questions,
+            ],
+            default => null,
+        };
     }
 
     private function getPracticeDefinition(string $practiceKey): ?array
     {
+        $subbab14Case = $this->getSubbab14ActivityCaseDefinition($practiceKey);
+
+        if ($subbab14Case !== null) {
+            return $subbab14Case;
+        }
+
         return match ($practiceKey) {
             'aktivitas-1-1' => [
                 'title' => 'Aktivitas 1.1 - Laboratorium Validasi Aljabar',
                 'type' => 'aktivitas',
                 'max_score' => 100,
+                'groups' => [
+                    'q1' => [
+                        'number' => 1,
+                        'fields' => ['q1_suku_bermasalah', 'q1_pangkat'],
+                        'points' => 34,
+                    ],
+                    'q2' => [
+                        'number' => 2,
+                        'fields' => ['q2_pelanggar'],
+                        'points' => 33,
+                    ],
+                    'q3' => [
+                        'number' => 3,
+                        'fields' => ['q3_pelanggar'],
+                        'points' => 33,
+                    ],
+                ],
                 'questions' => [
                     'q1_suku_bermasalah' => [
                         'accepted_answers' => ['tidak ada', 'tidakada'],
+                        'display_answer' => 'Tidak Ada',
                         'feedback_correct' => 'Benar. Persamaan ini sudah linear, sehingga tidak ada suku bermasalah.',
                         'feedback_wrong' => 'Belum tepat. Pada persamaan ini semua variabel berpangkat satu dan tidak memuat akar, hasil kali antarvariabel, atau fungsi khusus.',
                     ],
                     'q1_pangkat' => [
                         'accepted_answers' => ['1', 'satu', 'pangkat satu'],
+                        'display_answer' => '1',
                         'feedback_correct' => 'Benar. Pangkat tertinggi semua variabel pada persamaan tersebut adalah 1.',
                         'feedback_wrong' => 'Belum tepat. Perhatikan x₁, x₂, dan x₃. Semua variabel pada persamaan tersebut berpangkat satu.',
                     ],
                     'q2_pelanggar' => [
-                        'accepted_answers' => [
-                            '3√y',
-                            '√y',
-                            '3sqrt y',
-                            'sqrt y',
-                            '3sqrt(y)',
-                            'sqrt(y)',
-                            '3 akar y',
-                            'akar y',
-                        ],
+                        'accepted_answers' => ['3√y', '√y', '3sqrt y', 'sqrt y', '3sqrt(y)', 'sqrt(y)', '3 akar y', 'akar y'],
+                        'display_answer' => '3√y',
                         'feedback_correct' => 'Benar. Suku 3√y atau √y melanggar aturan linearitas karena variabel berada di dalam akar.',
                         'feedback_wrong' => 'Belum tepat. Cari suku yang memuat variabel di dalam tanda akar.',
                     ],
                     'q3_pelanggar' => [
-                        'accepted_answers' => [
-                            'x₁x₂',
-                            'x1x2',
-                            'x1 x2',
-                            'x1*x2',
-                            'x_1x_2',
-                            'x_1 x_2',
-                            'x_1*x_2',
-                        ],
+                        'accepted_answers' => ['x₁x₂', 'x1x2', 'x1 x2', 'x1*x2', 'x_1x_2', 'x_1 x_2', 'x_1*x_2'],
+                        'display_answer' => 'x₁x₂',
                         'feedback_correct' => 'Benar. Suku x₁x₂ melanggar aturan linearitas karena terjadi perkalian antarvariabel.',
                         'feedback_wrong' => 'Belum tepat. Cari suku yang menunjukkan dua variabel dikalikan secara langsung.',
                     ],
+                ],
+            ],
+
+            'cek-pemahaman-1-2' => [
+                'title' => 'Cek Pemahaman 1.2 - Bentuk Umum Sistem Persamaan Linear',
+                'type' => 'cek_pemahaman',
+                'max_score' => 0,
+                'groups' => [
+                    'q1' => [
+                        'number' => 1,
+                        'fields' => ['m', 'n'],
+                        'points' => 0,
+                    ],
+                    'q2' => [
+                        'number' => 2,
+                        'fields' => ['a12', 'a23', 'a32'],
+                        'points' => 0,
+                    ],
+                    'q3' => [
+                        'number' => 3,
+                        'fields' => ['b1', 'b2', 'b3', 'jenis'],
+                        'points' => 0,
+                    ],
+                ],
+                'questions' => [
+                    'm' => [
+                        'accepted_answers' => ['3', 'tiga'],
+                        'display_answer' => '3',
+                        'feedback_correct' => 'Benar. Sistem terdiri dari tiga persamaan.',
+                        'feedback_wrong' => 'Belum tepat. Hitung banyaknya baris persamaan pada sistem.',
+                    ],
+                    'n' => [
+                        'accepted_answers' => ['3', 'tiga'],
+                        'display_answer' => '3',
+                        'feedback_correct' => 'Benar. Sistem melibatkan tiga variabel.',
+                        'feedback_wrong' => 'Belum tepat. Perhatikan banyaknya variabel yang digunakan.',
+                    ],
+                    'a12' => [
+                        'accepted_answers' => ['-2'],
+                        'display_answer' => '-2',
+                        'feedback_correct' => 'Benar. Koefisien a₁₂ adalah -2.',
+                        'feedback_wrong' => 'Belum tepat. a₁₂ berada pada baris pertama dan kolom kedua.',
+                    ],
+                    'a23' => [
+                        'accepted_answers' => ['-1'],
+                        'display_answer' => '-1',
+                        'feedback_correct' => 'Benar. Koefisien a₂₃ adalah -1.',
+                        'feedback_wrong' => 'Belum tepat. a₂₃ berada pada baris kedua dan kolom ketiga.',
+                    ],
+                    'a32' => [
+                        'accepted_answers' => ['0', 'nol'],
+                        'display_answer' => '0',
+                        'feedback_correct' => 'Benar. Koefisien a₃₂ adalah 0.',
+                        'feedback_wrong' => 'Belum tepat. Tidak ada suku y pada persamaan ketiga, sehingga koefisiennya 0.',
+                    ],
+                    'b1' => [
+                        'accepted_answers' => ['14'],
+                        'display_answer' => '14',
+                        'feedback_correct' => 'Benar. b₁ bernilai 14.',
+                        'feedback_wrong' => 'Belum tepat. Lihat konstanta pada ruas kanan persamaan pertama.',
+                    ],
+                    'b2' => [
+                        'accepted_answers' => ['0', 'nol'],
+                        'display_answer' => '0',
+                        'feedback_correct' => 'Benar. b₂ bernilai 0.',
+                        'feedback_wrong' => 'Belum tepat. Lihat konstanta pada ruas kanan persamaan kedua.',
+                    ],
+                    'b3' => [
+                        'accepted_answers' => ['-7'],
+                        'display_answer' => '-7',
+                        'feedback_correct' => 'Benar. b₃ bernilai -7.',
+                        'feedback_wrong' => 'Belum tepat. Lihat konstanta pada ruas kanan persamaan ketiga.',
+                    ],
+                    'jenis' => [
+                        'accepted_answers' => ['nonhomogen', 'non-homogen', 'sistem persamaan linear nonhomogen', 'sistem persamaan linear non-homogen'],
+                        'display_answer' => 'Non-Homogen',
+                        'feedback_correct' => 'Benar. Ada konstanta yang tidak bernilai 0, sehingga sistemnya non-homogen.',
+                        'feedback_wrong' => 'Belum tepat. Sistem non-homogen memiliki minimal satu konstanta yang tidak bernilai 0.',
+                    ],
+                ],
+            ],
+
+            'aktivitas-1-2-server' => [
+                'title' => 'Aktivitas 1.2 Pemodelan Alokasi Sumber Daya Server',
+                'type' => 'aktivitas',
+                'max_score' => 100,
+                'groups' => [
+                    'q1' => [
+                        'number' => 1,
+                        'fields' => ['q1_jumlah_persamaan', 'q1_jumlah_variabel'],
+                        'points' => 20,
+                    ],
+                    'q2' => [
+                        'number' => 2,
+                        'fields' => ['q2_persamaan_cpu'],
+                        'points' => 20,
+                    ],
+                    'q3' => [
+                        'number' => 3,
+                        'fields' => ['q3_persamaan_ram'],
+                        'points' => 20,
+                    ],
+                    'q4' => [
+                        'number' => 4,
+                        'fields' => ['q4_jenis_sistem'],
+                        'points' => 20,
+                    ],
+                    'q5' => [
+                        'number' => 5,
+                        'fields' => ['q5_pernyataan'],
+                        'points' => 20,
+                    ],
+                ],
+                'questions' => [
+                    'q1_jumlah_persamaan' => [
+                        'accepted_answers' => ['2', 'dua'],
+                        'display_answer' => '2',
+                        'feedback_correct' => 'Benar. Ada dua batas sumber daya yang dimodelkan, yaitu CPU dan RAM, sehingga terdapat dua persamaan.',
+                        'feedback_wrong' => 'Belum tepat. Hitung jumlah batas sumber daya yang digunakan dalam kasus ini.',
+                    ],
+                    'q1_jumlah_variabel' => [
+                        'accepted_answers' => ['2', 'dua'],
+                        'display_answer' => '2',
+                        'feedback_correct' => 'Benar. Model memiliki dua variabel, yaitu x untuk Layanan Web dan y untuk Layanan Basis Data.',
+                        'feedback_wrong' => 'Belum tepat. Perhatikan jumlah jenis layanan yang dinyatakan sebagai variabel.',
+                    ],
+                    'q2_persamaan_cpu' => [
+                        'accepted_answers' => ['2x+3y=40', '3y+2x=40'],
+                        'display_answer' => '2x + 3y = 40',
+                        'feedback_correct' => 'Benar. Layanan Web membutuhkan 2 unit CPU dan Layanan Basis Data membutuhkan 3 unit CPU, dengan total 40 unit CPU.',
+                        'feedback_wrong' => 'Belum tepat. Gunakan kebutuhan CPU: 2 untuk setiap x dan 3 untuk setiap y, dengan batas total 40.',
+                    ],
+                    'q3_persamaan_ram' => [
+                        'accepted_answers' => ['x+4y=65', '1x+4y=65', '4y+x=65', '4y+1x=65'],
+                        'display_answer' => 'x + 4y = 65',
+                        'feedback_correct' => 'Benar. Layanan Web membutuhkan 1 unit RAM dan Layanan Basis Data membutuhkan 4 unit RAM, dengan total 65 unit RAM.',
+                        'feedback_wrong' => 'Belum tepat. Gunakan kebutuhan RAM: 1 untuk setiap x dan 4 untuk setiap y, dengan batas total 65.',
+                    ],
+                    'q4_jenis_sistem' => [
+                        'accepted_answers' => ['homogen', 'sistem homogen', 'spl homogen'],
+                        'display_answer' => 'Homogen',
+                        'feedback_correct' => 'Benar. Jika seluruh konstanta pada ruas kanan bernilai 0, sistem tersebut menjadi SPL homogen.',
+                        'feedback_wrong' => 'Belum tepat. Sistem dengan seluruh konstanta di ruas kanan sama dengan 0 disebut sistem homogen.',
+                    ],
+                    'q5_pernyataan' => [
+                        'input_type' => 'checkbox',
+                        'accepted_answers' => ['a11', 'b2', 'non_homogen'],
+                        'feedback_correct' => 'Benar. Pernyataan pertama, ketiga, dan keempat benar. Pada persamaan RAM, koefisien x adalah 1, bukan 0.',
+                        'feedback_wrong' => 'Belum tepat. Ingat bahwa x pada persamaan RAM dapat ditulis sebagai 1x. Pernyataan yang benar adalah pertama, ketiga, dan keempat.',
+                    ],
+                ],
+            ],
+
+
+            'cek-pemahaman-1-3' => [
+                'title' => 'Cek Pemahaman 1.3 - Kemungkinan Solusi Sistem Persamaan Linear',
+                'type' => 'cek_pemahaman',
+                'max_score' => 0,
+                'groups' => [
+                    'q1' => [
+                        'number' => 1,
+                        'fields' => ['cek_q1_garis'],
+                        'points' => 0,
+                    ],
+                    'q2' => [
+                        'number' => 2,
+                        'fields' => ['cek_q2_garis'],
+                        'points' => 0,
+                    ],
+                    'q3' => [
+                        'number' => 3,
+                        'fields' => ['cek_q3_pernyataan'],
+                        'points' => 0,
+                    ],
+                    'q4' => [
+                        'number' => 4,
+                        'fields' => ['cek_q4_konsistensi'],
+                        'points' => 0,
+                    ],
+                ],
+                'questions' => [
+                    'cek_q1_garis' => [
+                        'accepted_answers' => ['berpotongan'],
+                        'display_answer' => 'BERPOTONGAN',
+                        'feedback_correct' => 'Benar. Dua garis dengan kemiringan berbeda bertemu pada satu titik, sehingga sistem memiliki tepat satu solusi.',
+                        'feedback_wrong' => 'Belum tepat. Amati dua garis yang bertemu pada satu koordinat. Kondisi tersebut bukan berhimpit dan bukan sejajar.',
+                    ],
+                    'cek_q2_garis' => [
+                        'accepted_answers' => ['berhimpit'],
+                        'display_answer' => 'BERHIMPIT',
+                        'feedback_correct' => 'Benar. Kedua garis menumpuk pada jalur yang sama, sehingga setiap titik pada garis menjadi solusi.',
+                        'feedback_wrong' => 'Belum tepat. Perhatikan bahwa dua garis tidak memiliki jalur yang berbeda dan tidak hanya bertemu pada satu titik.',
+                    ],
+                    'cek_q3_pernyataan' => [
+                        'input_type' => 'checkbox',
+                        'accepted_answers' => ['cek_q3_a', 'cek_q3_b', 'cek_q3_d'],
+                        'feedback_correct' => 'Benar. Dua persamaan yang memiliki ruas kiri sama tetapi konstanta berbeda membentuk garis sejajar. Sistemnya tidak memiliki solusi dan bersifat inkonsisten.',
+                        'feedback_wrong' => 'Belum tepat. Perhatikan dua persamaan dengan ruas kiri yang sama, tetapi konstanta berbeda. Garisnya tidak akan bertemu.',
+                    ],
+                    'cek_q4_konsistensi' => [
+                        'accepted_answers' => ['inkonsisten', 'sistem inkonsisten'],
+                        'display_answer' => 'INKONSISTEN',
+                        'feedback_correct' => 'Benar. Sistem yang tidak memiliki solusi disebut sistem inkonsisten.',
+                        'feedback_wrong' => 'Belum tepat. Sistem konsisten memiliki paling tidak satu solusi, sedangkan sistem pada grafik sejajar tidak memiliki solusi.',
+                    ],
+                ],
+            ],
+
+            'aktivitas-1-3-solusi' => [
+                'title' => 'Aktivitas 1.3 Analisis Skenario Solusi di Dunia Nyata',
+                'type' => 'aktivitas',
+                'max_score' => 100,
+                'groups' => [
+                    'q1' => [
+                        'number' => 1,
+                        'fields' => ['aktivitas_q1_solusi'],
+                        'points' => 34,
+                    ],
+                    'q2' => [
+                        'number' => 2,
+                        'fields' => ['aktivitas_q2_solusi'],
+                        'points' => 33,
+                    ],
+                    'q3' => [
+                        'number' => 3,
+                        'fields' => ['aktivitas_q3_pernyataan'],
+                        'points' => 33,
+                    ],
+                ],
+                'questions' => [
+                    'aktivitas_q1_solusi' => [
+                        'accepted_answers' => ['solusi tunggal'],
+                        'display_answer' => 'SOLUSI TUNGGAL',
+                        'feedback_correct' => 'Benar. Dua garis dengan arah kemiringan berbeda berpotongan pada satu titik, sehingga sistem memiliki solusi tunggal.',
+                        'feedback_wrong' => 'Belum tepat. Jika dua garis dengan kemiringan berbeda saling berpotongan pada satu titik, sistem tidak memiliki banyak solusi.',
+                    ],
+                    'aktivitas_q2_solusi' => [
+                        'accepted_answers' => ['solusi banyak', 'tak berhingga banyaknya solusi', 'tak hingga banyaknya solusi'],
+                        'display_answer' => 'SOLUSI BANYAK',
+                        'feedback_correct' => 'Benar. Dua garis yang berhimpit memiliki semua titik yang sama, sehingga sistem memiliki solusi banyak.',
+                        'feedback_wrong' => 'Belum tepat. Perhatikan bahwa aturan kedua merupakan salinan dari aturan pertama, sehingga kedua garis berhimpit.',
+                    ],
+                    'aktivitas_q3_pernyataan' => [
+                        'input_type' => 'checkbox',
+                        'accepted_answers' => ['aktivitas_q3_a', 'aktivitas_q3_d'],
+                        'feedback_correct' => 'Benar. Aturan total poin 50 dan 100 tidak dapat dipenuhi secara bersamaan. Dua garis sejajar menghasilkan sistem inkonsisten dengan 0 solusi.',
+                        'feedback_wrong' => 'Belum tepat. Karena kedua aturan memiliki bentuk ruas kiri sama tetapi konstanta berbeda, garisnya sejajar dan sistem tidak memiliki solusi.',
+                    ],
+                ],
+            ],
+
+
+            'contoh-simulasi-1-4-perhitungan' => [
+                'title' => 'Contoh Simulasi 1.4 - Penyelesaian SPL Skala Kecil',
+                'type' => 'contoh_simulasi',
+                'max_score' => 0,
+                'groups' => [
+                    'perhitungan' => [
+                        'number' => 1,
+                        'fields' => [
+                            'sim_l3_ruas_kiri',
+                            'sim_l3_ruas_kanan',
+                            'sim_l3_nilai_x',
+                            'sim_l4_y_sub_x',
+                            'sim_l4_y_pengurang',
+                            'sim_l4_nilai_y',
+                            'sim_l4_z_sub_x',
+                            'sim_l4_z_sub_y',
+                            'sim_l4_z_ruas_kiri',
+                            'sim_l4_z_pengurang',
+                            'sim_l4_z_negatif',
+                            'sim_l4_nilai_z',
+                            'sim_hasil_x',
+                            'sim_hasil_y',
+                            'sim_hasil_z',
+                        ],
+                        'points' => 0,
+                    ],
+                ],
+                'questions' => [
+                    'sim_l3_ruas_kiri' => [
+                        'accepted_answers' => ['3x'],
+                        'display_answer' => '3x',
+                        'feedback_correct' => 'Benar. Setelah Persamaan 5 dikurangkan dari Persamaan 4, suku y habis dan ruas kiri menjadi 3x.',
+                        'feedback_wrong' => 'Belum tepat. Kurangkan (x + y) dari (4x + y). Hasil pada ruas kiri adalah 3x.',
+                    ],
+                    'sim_l3_ruas_kanan' => [
+                        'accepted_answers' => ['6'],
+                        'display_answer' => '6',
+                        'feedback_correct' => 'Benar. Ruas kanan diperoleh dari 9 - 3, yaitu 6.',
+                        'feedback_wrong' => 'Belum tepat. Kurangkan ruas kanan Persamaan 5 dari ruas kanan Persamaan 4: 9 - 3.',
+                    ],
+                    'sim_l3_nilai_x' => [
+                        'accepted_answers' => ['2'],
+                        'display_answer' => '2',
+                        'feedback_correct' => 'Benar. Dari 3x = 6 diperoleh x = 2.',
+                        'feedback_wrong' => 'Belum tepat. Bagi kedua ruas pada 3x = 6 dengan 3.',
+                    ],
+                    'sim_l4_y_sub_x' => [
+                        'accepted_answers' => ['2'],
+                        'display_answer' => '2',
+                        'feedback_correct' => 'Benar. Nilai x yang disubstitusikan ke Persamaan 5 adalah 2.',
+                        'feedback_wrong' => 'Belum tepat. Gunakan nilai x yang diperoleh pada Langkah 3.',
+                    ],
+                    'sim_l4_y_pengurang' => [
+                        'accepted_answers' => ['2'],
+                        'display_answer' => '2',
+                        'feedback_correct' => 'Benar. Dari 2 + y = 3 diperoleh y = 3 - 2.',
+                        'feedback_wrong' => 'Belum tepat. Pindahkan konstanta 2 ke ruas kanan dengan operasi pengurangan.',
+                    ],
+                    'sim_l4_nilai_y' => [
+                        'accepted_answers' => ['1'],
+                        'display_answer' => '1',
+                        'feedback_correct' => 'Benar. Nilai y adalah 1.',
+                        'feedback_wrong' => 'Belum tepat. Selesaikan 3 - 2 untuk memperoleh nilai y.',
+                    ],
+                    'sim_l4_z_sub_x' => [
+                        'accepted_answers' => ['2'],
+                        'display_answer' => '2',
+                        'feedback_correct' => 'Benar. Nilai x yang disubstitusikan ke Persamaan 2 adalah 2.',
+                        'feedback_wrong' => 'Belum tepat. Gunakan nilai x yang sudah diperoleh pada Langkah 3.',
+                    ],
+                    'sim_l4_z_sub_y' => [
+                        'accepted_answers' => ['1'],
+                        'display_answer' => '1',
+                        'feedback_correct' => 'Benar. Nilai y yang disubstitusikan ke Persamaan 2 adalah 1.',
+                        'feedback_wrong' => 'Belum tepat. Gunakan nilai y yang sudah diperoleh dari Persamaan 5.',
+                    ],
+                    'sim_l4_z_ruas_kiri' => [
+                        'accepted_answers' => ['1'],
+                        'display_answer' => '1',
+                        'feedback_correct' => 'Benar. Ruas kiri 2 - 1 - z disederhanakan menjadi 1 - z.',
+                        'feedback_wrong' => 'Belum tepat. Sederhanakan bagian konstanta pada 2 - 1 - z.',
+                    ],
+                    'sim_l4_z_pengurang' => [
+                        'accepted_answers' => ['1'],
+                        'display_answer' => '1',
+                        'feedback_correct' => 'Benar. Dari 1 - z = 2 diperoleh -z = 2 - 1.',
+                        'feedback_wrong' => 'Belum tepat. Pindahkan konstanta 1 ke ruas kanan dengan operasi pengurangan.',
+                    ],
+                    'sim_l4_z_negatif' => [
+                        'accepted_answers' => ['1'],
+                        'display_answer' => '1',
+                        'feedback_correct' => 'Benar. Hasil dari 2 - 1 adalah 1, sehingga -z = 1.',
+                        'feedback_wrong' => 'Belum tepat. Hitung 2 - 1 terlebih dahulu.',
+                    ],
+                    'sim_l4_nilai_z' => [
+                        'accepted_answers' => ['-1'],
+                        'display_answer' => '-1',
+                        'feedback_correct' => 'Benar. Karena -z = 1, maka z = -1.',
+                        'feedback_wrong' => 'Belum tepat. Jika -z = 1, kalikan kedua ruas dengan -1.',
+                    ],
+                    'sim_hasil_x' => [
+                        'accepted_answers' => ['2'],
+                        'display_answer' => '2',
+                        'feedback_correct' => 'Benar. Nilai x pada himpunan penyelesaian adalah 2.',
+                        'feedback_wrong' => 'Belum tepat. Gunakan hasil eliminasi pada Langkah 3.',
+                    ],
+                    'sim_hasil_y' => [
+                        'accepted_answers' => ['1'],
+                        'display_answer' => '1',
+                        'feedback_correct' => 'Benar. Nilai y pada himpunan penyelesaian adalah 1.',
+                        'feedback_wrong' => 'Belum tepat. Gunakan hasil substitusi ke Persamaan 5.',
+                    ],
+                    'sim_hasil_z' => [
+                        'accepted_answers' => ['-1'],
+                        'display_answer' => '-1',
+                        'feedback_correct' => 'Benar. Nilai z pada himpunan penyelesaian adalah -1.',
+                        'feedback_wrong' => 'Belum tepat. Gunakan hasil substitusi ke Persamaan 2.',
+                    ],
+                ],
+            ],
+
+            'cek-pemahaman-1-4-metode' => [
+                'title' => 'Cek Pemahaman 1.4 - Keterbatasan Metode Dasar',
+                'type' => 'cek_pemahaman',
+                'max_score' => 0,
+                'groups' => [
+                    'q1' => [
+                        'number' => 1,
+                        'fields' => ['cek_metode_pernyataan'],
+                        'points' => 0,
+                    ],
+                ],
+                'questions' => [
+                    'cek_metode_pernyataan' => [
+                        'input_type' => 'checkbox',
+                        'accepted_answers' => ['cek_metode_a', 'cek_metode_c'],
+                        'feedback_correct' => 'Benar. Untuk SPL berukuran besar, proses eliminasi-substitusi manual cenderung panjang dan rawan kesalahan operasi berulang.',
+                        'feedback_wrong' => 'Belum tepat. Pertimbangkan dampak banyaknya variabel dan operasi tanda tambah atau kurang yang harus ditulis secara manual.',
+                    ],
+                ],
+            ],
+
+            'contoh-simulasi-1-4-matriks-a' => [
+                'title' => 'Contoh Simulasi 1.4 - Ekstraksi Matriks Koefisien',
+                'type' => 'contoh_simulasi',
+                'max_score' => 0,
+                'groups' => [
+                    'q1' => [
+                        'number' => 1,
+                        'fields' => [
+                            'ma11', 'ma12', 'ma13',
+                            'ma21', 'ma22', 'ma23',
+                            'ma31', 'ma32', 'ma33',
+                        ],
+                        'points' => 0,
+                    ],
+                ],
+                'questions' => [
+                    'ma11' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar. Koefisien x pada persamaan pertama adalah 2.', 'feedback_wrong' => 'Belum tepat. Lihat koefisien x pada persamaan pertama.'],
+                    'ma12' => ['accepted_answers' => ['3'], 'display_answer' => '3', 'feedback_correct' => 'Benar. Koefisien y pada persamaan pertama adalah 3.', 'feedback_wrong' => 'Belum tepat. Lihat koefisien y pada persamaan pertama.'],
+                    'ma13' => ['accepted_answers' => ['-1'], 'display_answer' => '-1', 'feedback_correct' => 'Benar. Koefisien z pada persamaan pertama adalah -1.', 'feedback_wrong' => 'Belum tepat. Perhatikan tanda negatif di depan z pada persamaan pertama.'],
+                    'ma21' => ['accepted_answers' => ['4'], 'display_answer' => '4', 'feedback_correct' => 'Benar. Koefisien x pada persamaan kedua adalah 4.', 'feedback_wrong' => 'Belum tepat. Lihat koefisien x pada persamaan kedua.'],
+                    'ma22' => ['accepted_answers' => ['-1'], 'display_answer' => '-1', 'feedback_correct' => 'Benar. Koefisien y pada persamaan kedua adalah -1.', 'feedback_wrong' => 'Belum tepat. Perhatikan tanda negatif di depan y pada persamaan kedua.'],
+                    'ma23' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar. Koefisien z pada persamaan kedua adalah 2.', 'feedback_wrong' => 'Belum tepat. Lihat koefisien z pada persamaan kedua.'],
+                    'ma31' => ['accepted_answers' => ['-1'], 'display_answer' => '-1', 'feedback_correct' => 'Benar. Koefisien x pada persamaan ketiga adalah -1.', 'feedback_wrong' => 'Belum tepat. Perhatikan tanda negatif di depan x pada persamaan ketiga.'],
+                    'ma32' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar. Koefisien y pada persamaan ketiga adalah 2.', 'feedback_wrong' => 'Belum tepat. Lihat koefisien y pada persamaan ketiga.'],
+                    'ma33' => ['accepted_answers' => ['3'], 'display_answer' => '3', 'feedback_correct' => 'Benar. Koefisien z pada persamaan ketiga adalah 3.', 'feedback_wrong' => 'Belum tepat. Lihat koefisien z pada persamaan ketiga.'],
+                ],
+            ],
+
+            'contoh-simulasi-1-4-ax-b' => [
+                'title' => 'Contoh Simulasi 1.4 - Persamaan Matriks Ax = b',
+                'type' => 'contoh_simulasi',
+                'max_score' => 0,
+                'groups' => [
+                    'q1' => [
+                        'number' => 1,
+                        'fields' => ['axb_x1', 'axb_x2', 'axb_x3', 'axb_b1', 'axb_b2', 'axb_b3'],
+                        'points' => 0,
+                    ],
+                ],
+                'questions' => [
+                    'axb_x1' => ['accepted_answers' => ['x'], 'display_answer' => 'x', 'feedback_correct' => 'Benar. Entri pertama pada matriks variabel adalah x.', 'feedback_wrong' => 'Belum tepat. Matriks variabel disusun sesuai urutan variabel pada SPL, yaitu x, y, z.'],
+                    'axb_x2' => ['accepted_answers' => ['y'], 'display_answer' => 'y', 'feedback_correct' => 'Benar. Entri kedua pada matriks variabel adalah y.', 'feedback_wrong' => 'Belum tepat. Gunakan urutan variabel pada sistem, yaitu x, y, z.'],
+                    'axb_x3' => ['accepted_answers' => ['z'], 'display_answer' => 'z', 'feedback_correct' => 'Benar. Entri ketiga pada matriks variabel adalah z.', 'feedback_wrong' => 'Belum tepat. Gunakan urutan variabel pada sistem, yaitu x, y, z.'],
+                    'axb_b1' => ['accepted_answers' => ['5'], 'display_answer' => '5', 'feedback_correct' => 'Benar. Konstanta pada ruas kanan persamaan pertama adalah 5.', 'feedback_wrong' => 'Belum tepat. Lihat nilai pada ruas kanan Persamaan 1.'],
+                    'axb_b2' => ['accepted_answers' => ['-1'], 'display_answer' => '-1', 'feedback_correct' => 'Benar. Konstanta pada ruas kanan persamaan kedua adalah -1.', 'feedback_wrong' => 'Belum tepat. Lihat nilai pada ruas kanan Persamaan 2.'],
+                    'axb_b3' => ['accepted_answers' => ['4'], 'display_answer' => '4', 'feedback_correct' => 'Benar. Konstanta pada ruas kanan persamaan ketiga adalah 4.', 'feedback_wrong' => 'Belum tepat. Lihat nilai pada ruas kanan Persamaan 3.'],
+                ],
+            ],
+
+            'cek-pemahaman-1-4-ax-b' => [
+                'title' => 'Cek Pemahaman 1.4 - Notasi Ax = b',
+                'type' => 'cek_pemahaman',
+                'max_score' => 0,
+                'groups' => [
+                    'q1' => [
+                        'number' => 1,
+                        'fields' => ['cek_axb_pernyataan'],
+                        'points' => 0,
+                    ],
+                ],
+                'questions' => [
+                    'cek_axb_pernyataan' => [
+                        'input_type' => 'checkbox',
+                        'accepted_answers' => ['cek_axb_a', 'cek_axb_c'],
+                        'feedback_correct' => 'Benar. Notasi b adalah matriks konstanta pada ruas kanan, sedangkan entri A dibentuk oleh koefisien yang mendampingi variabel.',
+                        'feedback_wrong' => 'Belum tepat. Ingat bahwa x berbentuk vektor kolom, sedangkan b tidak harus bernilai 0.',
+                    ],
+                ],
+            ],
+
+            'contoh-simulasi-1-4-augmented' => [
+                'title' => 'Contoh Simulasi 1.4 - Augmented Matrix',
+                'type' => 'contoh_simulasi',
+                'max_score' => 0,
+                'groups' => [
+                    'q1' => [
+                        'number' => 1,
+                        'fields' => [
+                            'aug11', 'aug12', 'aug13', 'aug14',
+                            'aug21', 'aug22', 'aug23', 'aug24',
+                            'aug31', 'aug32', 'aug33', 'aug34',
+                        ],
+                        'points' => 0,
+                    ],
+                ],
+                'questions' => [
+                    'aug11' => [
+                        'accepted_answers' => ['2'],
+                        'display_answer' => '2',
+                        'feedback_correct' => 'Benar. Elemen pada baris pertama sudah sesuai.',
+                        'feedback_wrong' => 'Belum tepat. Periksa kembali koefisien variabel x pada persamaan pertama.',
+                    ],
+                    'aug12' => [
+                        'accepted_answers' => ['3'],
+                        'display_answer' => '3',
+                        'feedback_correct' => 'Benar. Elemen pada baris pertama sudah sesuai.',
+                        'feedback_wrong' => 'Belum tepat. Periksa kembali koefisien variabel y pada persamaan pertama.',
+                    ],
+                    'aug13' => [
+                        'accepted_answers' => ['-1'],
+                        'display_answer' => '-1',
+                        'feedback_correct' => 'Benar. Elemen pada baris pertama sudah sesuai.',
+                        'feedback_wrong' => 'Belum tepat. Perhatikan tanda koefisien variabel z pada persamaan pertama.',
+                    ],
+                    'aug14' => [
+                        'accepted_answers' => ['5'],
+                        'display_answer' => '5',
+                        'feedback_correct' => 'Benar. Konstanta pada baris pertama sudah sesuai.',
+                        'feedback_wrong' => 'Belum tepat. Periksa nilai konstanta pada ruas kanan persamaan pertama.',
+                    ],
+
+                    'aug21' => [
+                        'accepted_answers' => ['4'],
+                        'display_answer' => '4',
+                        'feedback_correct' => 'Benar. Elemen pada baris kedua sudah sesuai.',
+                        'feedback_wrong' => 'Belum tepat. Periksa kembali koefisien variabel x pada persamaan kedua.',
+                    ],
+                    'aug22' => [
+                        'accepted_answers' => ['-1'],
+                        'display_answer' => '-1',
+                        'feedback_correct' => 'Benar. Elemen pada baris kedua sudah sesuai.',
+                        'feedback_wrong' => 'Belum tepat. Perhatikan tanda koefisien variabel y pada persamaan kedua.',
+                    ],
+                    'aug23' => [
+                        'accepted_answers' => ['2'],
+                        'display_answer' => '2',
+                        'feedback_correct' => 'Benar. Elemen pada baris kedua sudah sesuai.',
+                        'feedback_wrong' => 'Belum tepat. Periksa kembali koefisien variabel z pada persamaan kedua.',
+                    ],
+                    'aug24' => [
+                        'accepted_answers' => ['-1'],
+                        'display_answer' => '-1',
+                        'feedback_correct' => 'Benar. Konstanta pada baris kedua sudah sesuai.',
+                        'feedback_wrong' => 'Belum tepat. Perhatikan tanda nilai konstanta pada ruas kanan persamaan kedua.',
+                    ],
+
+                    'aug31' => [
+                        'accepted_answers' => ['-1'],
+                        'display_answer' => '-1',
+                        'feedback_correct' => 'Benar. Elemen pada baris ketiga sudah sesuai.',
+                        'feedback_wrong' => 'Belum tepat. Perhatikan tanda koefisien variabel x pada persamaan ketiga.',
+                    ],
+                    'aug32' => [
+                        'accepted_answers' => ['2'],
+                        'display_answer' => '2',
+                        'feedback_correct' => 'Benar. Elemen pada baris ketiga sudah sesuai.',
+                        'feedback_wrong' => 'Belum tepat. Periksa kembali koefisien variabel y pada persamaan ketiga.',
+                    ],
+                    'aug33' => [
+                        'accepted_answers' => ['3'],
+                        'display_answer' => '3',
+                        'feedback_correct' => 'Benar. Elemen pada baris ketiga sudah sesuai.',
+                        'feedback_wrong' => 'Belum tepat. Periksa kembali koefisien variabel z pada persamaan ketiga.',
+                    ],
+                    'aug34' => [
+                        'accepted_answers' => ['4'],
+                        'display_answer' => '4',
+                        'feedback_correct' => 'Benar. Konstanta pada baris ketiga sudah sesuai.',
+                        'feedback_wrong' => 'Belum tepat. Periksa nilai konstanta pada ruas kanan persamaan ketiga.',
+                    ],
+                ],
+            ],
+
+            'cek-pemahaman-1-4-terjemahan-matriks' => [
+                'title' => 'Cek Pemahaman 1.4 - Terjemahan Augmented Matrix',
+                'type' => 'cek_pemahaman',
+                'max_score' => 0,
+                'groups' => [
+                    'q1' => [
+                        'number' => 1,
+                        'fields' => ['terjemah_baris1', 'terjemah_baris2', 'terjemah_baris3'],
+                        'points' => 0,
+                    ],
+                ],
+                'questions' => [
+                    'terjemah_baris1' => [
+                        'accepted_answers' => ['x-2y=8', '1x-2y+0z=8', 'x-2y+0z=8'],
+                        'display_answer' => 'x - 2y = 8',
+                        'feedback_correct' => 'Benar. Persamaan pada baris pertama sudah sesuai dengan elemen matriks.',
+                        'feedback_wrong' => 'Belum tepat. Cocokkan kembali setiap elemen pada baris pertama dengan urutan koefisien x, y, z, lalu konstanta di sebelah kanan garis vertikal.',
+                    ],
+                    'terjemah_baris2' => [
+                        'accepted_answers' => ['3y+z=4', '0x+3y+z=4', '0x+3y+1z=4'],
+                        'display_answer' => '3y + z = 4',
+                        'feedback_correct' => 'Benar. Persamaan pada baris kedua sudah sesuai dengan elemen matriks.',
+                        'feedback_wrong' => 'Belum tepat. Periksa kembali urutan koefisien x, y, dan z pada baris kedua. Elemen terakhir setelah garis vertikal merupakan konstanta.',
+                    ],
+                    'terjemah_baris3' => [
+                        'accepted_answers' => ['2x-5z=-1', '2x+0y-5z=-1'],
+                        'display_answer' => '2x - 5z = -1',
+                        'feedback_correct' => 'Benar. Persamaan pada baris ketiga sudah sesuai dengan elemen matriks.',
+                        'feedback_wrong' => 'Belum tepat. Periksa posisi setiap koefisien pada baris ketiga, terutama apabila ada variabel yang tidak memiliki nilai koefisien tertulis.',
+                    ],
+                ],
+            ],
+
+            'aktivitas-1-4-matriks' => [
+                'title' => 'Aktivitas 1.4 Pemodelan Matriks pada Kasus Komputasi Dunia Nyata',
+                'type' => 'aktivitas',
+                'max_score' => 100,
+                'groups' => [
+                    'q1' => [
+                        'number' => 1,
+                        'fields' => [
+                            'game_a11', 'game_a12', 'game_a13',
+                            'game_a21', 'game_a22', 'game_a23',
+                            'game_a31', 'game_a32', 'game_a33',
+                            'game_b1', 'game_b2', 'game_b3',
+                        ],
+                        'points' => 34,
+                    ],
+                    'q2' => [
+                        'number' => 2,
+                        'fields' => [
+                            'cloud_a11', 'cloud_a12', 'cloud_a13', 'cloud_b1',
+                            'cloud_a21', 'cloud_a22', 'cloud_a23', 'cloud_b2',
+                            'cloud_a31', 'cloud_a32', 'cloud_a33', 'cloud_b3',
+                        ],
+                        'points' => 33,
+                    ],
+                    'q3' => [
+                        'number' => 3,
+                        'fields' => [
+                            'debug_pernyataan',
+                            'debug_a11', 'debug_a12', 'debug_a13', 'debug_b1',
+                            'debug_a21', 'debug_a22', 'debug_a23', 'debug_b2',
+                            'debug_a31', 'debug_a32', 'debug_a33', 'debug_b3',
+                        ],
+                        'points' => 33,
+                    ],
+                ],
+                'questions' => [
+                    'game_a11' => ['accepted_answers' => ['3'], 'display_answer' => '3', 'feedback_correct' => 'Benar. Satu Pedang membutuhkan 3 Besi.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Besi untuk Pedang.'],
+                    'game_a12' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar. Satu Pedang membutuhkan 1 Perak.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Perak untuk Pedang.'],
+                    'game_a13' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar. Satu Pedang tidak membutuhkan Emas.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Emas untuk Pedang.'],
+                    'game_a21' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar. Satu Perisai membutuhkan 2 Besi.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Besi untuk Perisai.'],
+                    'game_a22' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar. Satu Perisai membutuhkan 2 Perak.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Perak untuk Perisai.'],
+                    'game_a23' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar. Satu Perisai membutuhkan 1 Emas.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Emas untuk Perisai.'],
+                    'game_a31' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar. Satu Zirah tidak membutuhkan Besi.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Besi untuk Zirah.'],
+                    'game_a32' => ['accepted_answers' => ['4'], 'display_answer' => '4', 'feedback_correct' => 'Benar. Satu Zirah membutuhkan 4 Perak.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Perak untuk Zirah.'],
+                    'game_a33' => ['accepted_answers' => ['3'], 'display_answer' => '3', 'feedback_correct' => 'Benar. Satu Zirah membutuhkan 3 Emas.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Emas untuk Zirah.'],
+                    'game_b1' => ['accepted_answers' => ['50'], 'display_answer' => '50', 'feedback_correct' => 'Benar. Harga jual Pedang adalah 50 koin.', 'feedback_wrong' => 'Belum tepat. Lihat harga jual Pedang.'],
+                    'game_b2' => ['accepted_answers' => ['80'], 'display_answer' => '80', 'feedback_correct' => 'Benar. Harga jual Perisai adalah 80 koin.', 'feedback_wrong' => 'Belum tepat. Lihat harga jual Perisai.'],
+                    'game_b3' => ['accepted_answers' => ['120'], 'display_answer' => '120', 'feedback_correct' => 'Benar. Harga jual Zirah adalah 120 koin.', 'feedback_wrong' => 'Belum tepat. Lihat harga jual Zirah.'],
+
+                    'cloud_a11' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar. Basic memakai 2 core CPU.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan CPU server Basic.'],
+                    'cloud_a12' => ['accepted_answers' => ['4'], 'display_answer' => '4', 'feedback_correct' => 'Benar. Pro memakai 4 core CPU.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan CPU server Pro.'],
+                    'cloud_a13' => ['accepted_answers' => ['8'], 'display_answer' => '8', 'feedback_correct' => 'Benar. Enterprise memakai 8 core CPU.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan CPU server Enterprise.'],
+                    'cloud_b1' => ['accepted_answers' => ['64'], 'display_answer' => '64', 'feedback_correct' => 'Benar. Total CPU yang disewa adalah 64 core.', 'feedback_wrong' => 'Belum tepat. Lihat total CPU yang disebutkan.'],
+                    'cloud_a21' => ['accepted_answers' => ['4'], 'display_answer' => '4', 'feedback_correct' => 'Benar. Basic memakai 4 GB RAM.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan RAM server Basic.'],
+                    'cloud_a22' => ['accepted_answers' => ['16'], 'display_answer' => '16', 'feedback_correct' => 'Benar. Pro memakai 16 GB RAM.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan RAM server Pro.'],
+                    'cloud_a23' => ['accepted_answers' => ['32'], 'display_answer' => '32', 'feedback_correct' => 'Benar. Enterprise memakai 32 GB RAM.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan RAM server Enterprise.'],
+                    'cloud_b2' => ['accepted_answers' => ['200'], 'display_answer' => '200', 'feedback_correct' => 'Benar. Total RAM yang disewa adalah 200 GB.', 'feedback_wrong' => 'Belum tepat. Lihat total RAM yang disebutkan.'],
+                    'cloud_a31' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar. Basic memakai 1 TB Storage.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Storage server Basic.'],
+                    'cloud_a32' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar. Pro memakai 1 TB Storage.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Storage server Pro.'],
+                    'cloud_a33' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar. Enterprise memakai 2 TB Storage.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Storage server Enterprise.'],
+                    'cloud_b3' => ['accepted_answers' => ['20'], 'display_answer' => '20', 'feedback_correct' => 'Benar. Total Storage yang disewa adalah 20 TB.', 'feedback_wrong' => 'Belum tepat. Lihat total Storage yang disebutkan.'],
+
+                    'debug_pernyataan' => [
+                        'input_type' => 'checkbox',
+                        'accepted_answers' => ['debug_a', 'debug_c'],
+                        'feedback_correct' => 'Benar. Kesalahan terjadi pada Baris 1 dan Baris 3. Baris 2 sudah memuat koefisien yang sesuai.',
+                        'feedback_wrong' => 'Belum tepat. Bandingkan setiap koefisien x, y, z, dan konstanta pada SPL asli dengan matriks input Programmer Junior.',
+                    ],
+                    'debug_a11' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar. Koefisien x pada Baris 1 adalah 1.', 'feedback_wrong' => 'Belum tepat. Variabel x tanpa angka memiliki koefisien 1.'],
+                    'debug_a12' => ['accepted_answers' => ['-3'], 'display_answer' => '-3', 'feedback_correct' => 'Benar. Koefisien y pada Baris 1 adalah -3.', 'feedback_wrong' => 'Belum tepat. Perhatikan tanda negatif di depan 3y.'],
+                    'debug_a13' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar. Variabel z tidak muncul pada Baris 1, sehingga koefisiennya 0.', 'feedback_wrong' => 'Belum tepat. Variabel z tidak muncul pada Baris 1.'],
+                    'debug_b1' => ['accepted_answers' => ['5'], 'display_answer' => '5', 'feedback_correct' => 'Benar. Konstanta pada Baris 1 adalah 5.', 'feedback_wrong' => 'Belum tepat. Lihat ruas kanan Baris 1.'],
+                    'debug_a21' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar. Koefisien x pada Baris 2 adalah 2.', 'feedback_wrong' => 'Belum tepat. Lihat koefisien x pada Baris 2.'],
+                    'debug_a22' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar. Variabel y tanpa angka memiliki koefisien 1.', 'feedback_wrong' => 'Belum tepat. Variabel y tanpa angka memiliki koefisien 1.'],
+                    'debug_a23' => ['accepted_answers' => ['4'], 'display_answer' => '4', 'feedback_correct' => 'Benar. Koefisien z pada Baris 2 adalah 4.', 'feedback_wrong' => 'Belum tepat. Lihat koefisien z pada Baris 2.'],
+                    'debug_b2' => ['accepted_answers' => ['10'], 'display_answer' => '10', 'feedback_correct' => 'Benar. Konstanta pada Baris 2 adalah 10.', 'feedback_wrong' => 'Belum tepat. Lihat ruas kanan Baris 2.'],
+                    'debug_a31' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar. Variabel x tidak muncul pada Baris 3, sehingga koefisiennya 0.', 'feedback_wrong' => 'Belum tepat. Variabel x tidak muncul pada Baris 3.'],
+                    'debug_a32' => ['accepted_answers' => ['-1'], 'display_answer' => '-1', 'feedback_correct' => 'Benar. Koefisien y pada Baris 3 adalah -1.', 'feedback_wrong' => 'Belum tepat. Perhatikan tanda negatif di depan y.'],
+                    'debug_a33' => ['accepted_answers' => ['5'], 'display_answer' => '5', 'feedback_correct' => 'Benar. Koefisien z pada Baris 3 adalah 5.', 'feedback_wrong' => 'Belum tepat. Lihat koefisien z pada Baris 3.'],
+                    'debug_b3' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar. Konstanta pada Baris 3 adalah 2.', 'feedback_wrong' => 'Belum tepat. Lihat ruas kanan Baris 3.'],
                 ],
             ],
 
@@ -139,15 +1415,25 @@ class PracticeController extends Controller
         };
     }
 
-    private function normalize(?string $value): string
+    private function normalize(mixed $value): string
     {
         $value = strtolower(trim((string) $value));
-
         $value = str_replace(['√', '−', '–'], ['sqrt', '-', '-'], $value);
         $value = str_replace(['₁', '₂', '₃'], ['1', '2', '3'], $value);
         $value = str_replace(['_', '*', '(', ')'], '', $value);
         $value = preg_replace('/\s+/', '', $value);
 
         return $value;
+    }
+
+    private function normalizeMultiple(mixed $value): array
+    {
+        return collect(is_array($value) ? $value : [])
+            ->map(fn ($item) => $this->normalize($item))
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
     }
 }

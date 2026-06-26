@@ -1,4 +1,31 @@
 <x-app-layout>
+    
+<link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+
+<style>
+    .cbt-page {
+        font-family: 'Inter', sans-serif;
+    }
+
+    .cbt-page .cbt-mono,
+    .cbt-page .font-mono {
+        font-family: 'JetBrains Mono', monospace;
+    }
+
+    .cbt-page math-field {
+        font-family: 'Inter', sans-serif;
+    }
+
+    .cbt-page input,
+    .cbt-page button,
+    .cbt-page textarea,
+    .cbt-page select {
+        font-family: 'Inter', sans-serif;
+    }
+</style>
+
     @php
         $quiz = $attempt->quiz;
         $questions = $quiz->questions->values();
@@ -119,7 +146,6 @@
                     if (!response.ok || !data.saved) {
                         throw new Error(data.message || 'Jawaban gagal disimpan.');
                     }
-
                 } catch (error) {
                     this.saveError = error.message || 'Jawaban gagal disimpan.';
                 } finally {
@@ -272,8 +298,8 @@
                 document.getElementById('quiz-form').submit();
             }
         }"
-        x-init="init()"
-        class="min-h-screen overflow-y-auto px-3 py-3 sm:px-4 lg:h-screen lg:overflow-hidden lg:px-5">
+
+        class="cbt-page min-h-screen overflow-y-auto px-3 py-3 sm:px-4 lg:h-screen lg:overflow-hidden lg:px-5">
 
         <form
             id="quiz-form"
@@ -322,7 +348,7 @@
                                         '2x - y + z = 3',
                                         'x + 2y - z = 2',
                                     ];
-                                    $extraNote = 'Unggah file langkah pengerjaan, lalu masukkan jawaban akhir.';
+                                    $extraNote = 'Tuliskan langkah pengerjaan pada area yang tersedia, lalu masukkan jawaban akhir.';
                                 }
 
                                 if ($question->order_number === 8) {
@@ -365,7 +391,7 @@
                                         Soal {{ $index + 1 }} dari {{ $questions->count() }}
                                     </p>
 
-                                    <h2 class="mt-2 text-base font-black leading-6 text-slate-900 lg:text-lg lg:leading-7">
+                                    <h2 class="mt-2 text-base font-medium leading-6 text-slate-800 lg:text-lg lg:leading-7">
                                         {{ $displayText }}
                                     </h2>
 
@@ -387,7 +413,7 @@
 
                                     @if (!empty($equationsTex))
                                         <div class="mb-4 flex justify-center">
-                                            <div class="min-w-[230px] rounded-2xl border border-slate-300 bg-slate-50 px-6 py-2 text-center text-base font-semibold leading-7 text-slate-900">
+                                            <div class="min-w-[230px] rounded-2xl border border-slate-300 bg-slate-50 px-6 py-2 text-center text-base font-normal leading-7 text-slate-900">
                                                 @foreach ($equationsTex as $equation)
                                                     <div>\({{ $equation }}\)</div>
                                                 @endforeach
@@ -446,30 +472,95 @@
                                                 @endif
                                                 class="mt-2 w-full rounded-2xl border-slate-300 bg-white px-4 py-3 text-center text-lg font-bold text-slate-900 shadow-sm focus:border-cyan-500 focus:ring-cyan-500"
                                                 placeholder="Ketik jawaban Anda di sini">
-
-                                            @if ($question->question_type === 'math_notation')
-                                                <div
-                                                    class="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-lg font-semibold text-slate-900"
-                                                    x-text="'\\(' + (mathAnswer.trim() || '\\text{Pratinjau notasi}') + '\\)'">
-                                                </div>
-                                            @endif
                                         </label>
                                     @elseif ($question->question_type === 'canvas_final_answer')
                                         <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_260px]">
-                                            <div class="rounded-2xl border border-slate-300 bg-slate-50 p-4">
-                                                <p class="text-sm font-black text-slate-700">
-                                                    Upload file langkah pengerjaan
-                                                </p>
+                                            <div
+                                                x-data="{
+                                                    workspaceLatex: @js($savedResponse?->canvas_data ?? ''),
 
-                                                <p class="mt-1 text-xs leading-5 text-slate-500">
-                                                    Unggah file berisi langkah penyelesaian. Format: PDF, JPG, JPEG, atau PNG. Maksimal 5 MB.
-                                                </p>
+                                                    initializeWorkspace() {
+                                                        const setupMathField = () => {
+                                                            const mathField = this.$refs.workspaceField;
+
+                                                            if (!mathField) {
+                                                                return;
+                                                            }
+
+                                                            let latex = (this.workspaceLatex || '').trim();
+
+                                                            const isMultiline =
+                                                                latex.includes('\\begin{array}') ||
+                                                                latex.includes('\\begin{aligned}');
+
+                                                            if (!latex) {
+                                                                latex = '\\begin{array}{l}\\placeholder{}\\end{array}';
+                                                            } else if (!isMultiline) {
+                                                                latex = `\\begin{array}{l}${latex}\\end{array}`;
+                                                            }
+
+                                                            mathField.value = latex;
+                                                            this.workspaceLatex = mathField.value;
+
+                                                            const existingBindings = Array.isArray(mathField.keybindings)
+                                                                ? mathField.keybindings.filter(binding => binding.key !== 'enter')
+                                                                : [];
+
+                                                            mathField.keybindings = [
+                                                                {
+                                                                    key: 'enter',
+                                                                    command: ['insert', '\\\\'],
+                                                                },
+                                                                ...existingBindings,
+                                                            ];
+                                                        };
+
+                                                        if (customElements.get('math-field')) {
+                                                            this.$nextTick(setupMathField);
+                                                        } else {
+                                                            customElements.whenDefined('math-field').then(() => {
+                                                                this.$nextTick(setupMathField);
+                                                            });
+                                                        }
+                                                    },
+
+                                                    addNewLine() {
+                                                        const mathField = this.$refs.workspaceField;
+
+                                                        if (!mathField) {
+                                                            return;
+                                                        }
+
+                                                        mathField.focus();
+                                                        mathField.insert('\\\\');
+
+                                                        this.workspaceLatex = mathField.value;
+                                                        scheduleSave();
+                                                    }
+                                                }"
+                                                x-init="initializeWorkspace()"
+                                                class="rounded-2xl border border-slate-300 bg-slate-50 p-4">
+
+                                                <div class="flex items-center justify-between gap-3">
+                                                    <p class="text-sm font-black text-slate-700">
+                                                        Langkah Pengerjaan
+                                                    </p>
+                                                </div>
+
+                                                <div class="mt-3 overflow-hidden rounded-2xl border border-slate-300 bg-white">
+                                                    <math-field
+                                                        x-ref="workspaceField"
+                                                        math-virtual-keyboard-policy="auto"
+                                                        smart-fence="on"
+                                                        @input="workspaceLatex = $event.target.value; scheduleSave()"
+                                                        class="block min-h-[250px] w-full border-0 bg-white px-4 py-4 text-left text-lg text-slate-900 shadow-none outline-none">
+                                                    </math-field>
+                                                </div>
 
                                                 <input
-                                                    type="file"
-                                                    name="responses[{{ $question->id }}][step_file]"
-                                                    accept=".pdf,.jpg,.jpeg,.png"
-                                                    class="mt-3 w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 file:mr-3 file:rounded-xl file:border-0 file:bg-cyan-100 file:px-3 file:py-2 file:text-xs file:font-black file:text-cyan-800 hover:file:bg-cyan-200">
+                                                    type="hidden"
+                                                    name="responses[{{ $question->id }}][canvas_data]"
+                                                    x-model="workspaceLatex">
                                             </div>
 
                                             <div class="min-w-0 rounded-2xl border border-slate-300 bg-slate-50 p-4">
@@ -676,7 +767,11 @@
                             </p>
 
                             <div class="mt-2 text-[11px] font-bold text-cyan-100/80">
-                                <span x-show="!isSaving && !saveError && !lastSavedAt" x-cloak>
+                                <span x-show="isSaving" x-cloak>
+                                    Menyimpan jawaban...
+                                </span>
+
+                                <span x-show="!isSaving && !saveError" x-cloak>
                                     Autosave aktif
                                 </span>
 
@@ -708,7 +803,7 @@
                             <button
                                 type="button"
                                 @click="saveProgress(); current = {{ $index }}"
-                                class="h-9 rounded-xl text-xs font-black transition sm:h-10 sm:text-sm"
+                                class="cbt-mono h-9 rounded-xl text-xs font-black transition sm:h-10 sm:text-sm"
                                 :class="questionButtonClass('{{ $question->id }}', {{ $index }})">
                                 {{ $index + 1 }}
                             </button>
@@ -864,4 +959,6 @@
             </div>
         </div>
     </div>
+
+    <script defer src="https://cdn.jsdelivr.net/npm/mathlive"></script>
 </x-app-layout>

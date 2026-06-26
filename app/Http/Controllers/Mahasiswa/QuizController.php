@@ -226,6 +226,17 @@ class QuizController extends Controller
                 $payload = [];
             }
 
+            $existingResponse = $attempt->responses()
+                ->where('quiz_question_id', $question->id)
+                ->first();
+
+            $canvasData = $existingResponse?->canvas_data;
+
+            if (array_key_exists('canvas_data', $payload)) {
+                $canvasData = trim((string) $payload['canvas_data']);
+                $canvasData = $canvasData !== '' ? $canvasData : null;
+            }
+
             unset($payload['step_file'], $payload['canvas_data']);
 
             $attempt->responses()->updateOrCreate(
@@ -234,6 +245,7 @@ class QuizController extends Controller
                 ],
                 [
                     'response_value' => $payload,
+                    'canvas_data' => $canvasData,
                     'is_marked_doubtful' => (bool) ($payload['is_marked_doubtful'] ?? false),
                     'is_answered' => $this->isAnswered($question, $payload),
                 ]
@@ -249,10 +261,6 @@ class QuizController extends Controller
     public function submit(Request $request, QuizAttempt $attempt)
     {
         $this->ensureAttemptOwner($attempt);
-
-        $request->validate([
-            'responses.*.step_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
-        ]);
 
         if ($attempt->status !== 'in_progress') {
             return redirect()->route('mahasiswa.kuis.result', $attempt);
@@ -275,13 +283,12 @@ class QuizController extends Controller
 
             $canvasData = $existingResponse?->canvas_data;
 
-            if ($request->hasFile("responses.{$question->id}.step_file")) {
-                $canvasData = $request
-                    ->file("responses.{$question->id}.step_file")
-                    ->store("quiz-step-files/attempt-{$attempt->id}", 'public');
+            if (array_key_exists('canvas_data', $payload)) {
+                $canvasData = trim((string) $payload['canvas_data']);
+                $canvasData = $canvasData !== '' ? $canvasData : null;
             }
 
-            unset($payload['canvas_data'], $payload['step_file']);
+            unset($payload['step_file'], $payload['canvas_data']);
 
             $attempt->responses()->updateOrCreate(
                 [

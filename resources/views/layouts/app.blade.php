@@ -56,8 +56,6 @@
             @include('layouts.navigation')
         @endunless
 
-        <x-flash-popup />
-
         @isset($header)
             @unless ($isCbtPage)
                 <header class="bg-white shadow">

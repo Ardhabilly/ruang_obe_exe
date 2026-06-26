@@ -37,7 +37,7 @@
 
                         <p class="mt-5 max-w-lg text-base leading-8 text-slate-300">
                             Pelajari Sistem Persamaan Linear, Operasi Baris Elementer, Eliminasi Gauss,
-                            dan Gauss-Jordan melalui materi bertahap, latihan, kuis, serta learning analytics.
+                            dan Gauss-Jordan melalui materi bertahap, latihan dan kuis.
                         </p>
                     </div>
 
@@ -52,10 +52,10 @@
                             <p class="mt-1 text-xs text-slate-400">Operasi Baris</p>
                         </div>
 
-                        <div class="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
+                        {{-- <div class="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
                             <p class="text-2xl font-black text-white">LA</p>
                             <p class="mt-1 text-xs text-slate-400">Analytics</p>
-                        </div>
+                        </div> --}}
                     </div>
                 </div>
             </section>
