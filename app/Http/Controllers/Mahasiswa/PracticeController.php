@@ -247,14 +247,6 @@ class PracticeController extends Controller
             ]
         );
 
-        /*
-        | Tiga studi kasus Aktivitas 1.4 sekarang diperiksa satu per satu
-        | sesuai tombol pada modul. Rekap parent tetap diperbarui agar aturan
-        | progres subbab yang sebelumnya memakai practice key lama tetap berjalan.
-        */
-        if ($this->isSubbab14ActivityCase($practiceKey)) {
-            $this->syncSubbab14ActivitySummary($lesson);
-        }
 
         return back()
             ->withInput()
@@ -269,120 +261,6 @@ class PracticeController extends Controller
                     $componentStatus,
                 )
             );
-    }
-
-    private function isSubbab14ActivityCase(string $practiceKey): bool
-    {
-        return in_array($practiceKey, [
-            'aktivitas-1-4-kasus-1',
-            'aktivitas-1-4-kasus-2',
-            'aktivitas-1-4-kasus-3',
-        ], true);
-    }
-
-    private function syncSubbab14ActivitySummary(CourseLesson $lesson): void
-    {
-        $caseDefinitions = [
-            'aktivitas-1-4-kasus-1' => ['number' => 1, 'points' => 34],
-            'aktivitas-1-4-kasus-2' => ['number' => 2, 'points' => 33],
-            'aktivitas-1-4-kasus-3' => ['number' => 3, 'points' => 33],
-        ];
-
-        $caseSubmissions = PracticeSubmission::query()
-            ->where('user_id', Auth::id())
-            ->where('course_lesson_id', $lesson->id)
-            ->whereIn('practice_key', array_keys($caseDefinitions))
-            ->get()
-            ->keyBy('practice_key');
-
-        $answers = [];
-        $fields = [];
-        $groups = [];
-        $assistedGroups = [];
-        $score = 0;
-        $allCasesCompleted = true;
-        $hasAssistedCase = false;
-
-        foreach ($caseDefinitions as $caseKey => $definition) {
-            $caseSubmission = $caseSubmissions->get($caseKey);
-            $caseFeedback = is_array($caseSubmission?->feedback)
-                ? $caseSubmission->feedback
-                : [];
-
-            $caseAnswers = is_array($caseSubmission?->answers)
-                ? $caseSubmission->answers
-                : [];
-
-            $caseFields = is_array($caseFeedback['fields'] ?? null)
-                ? $caseFeedback['fields']
-                : collect($caseFeedback)
-                    ->except(['_meta', 'groups', 'fields'])
-                    ->filter(fn ($item) => is_array($item))
-                    ->all();
-
-            $caseMeta = is_array($caseFeedback['_meta'] ?? null)
-                ? $caseFeedback['_meta']
-                : [];
-
-            $isCompleted = (bool) ($caseSubmission?->is_completed ?? false);
-            $isAssisted = $isCompleted
-                && ($caseMeta['completion_mode'] ?? null) === 'bantuan';
-
-            $answers = array_replace($answers, $caseAnswers);
-            $fields = array_replace($fields, $caseFields);
-            $score += (int) ($caseSubmission?->score ?? 0);
-            $allCasesCompleted = $allCasesCompleted && $isCompleted;
-            $hasAssistedCase = $hasAssistedCase || $isAssisted;
-
-            $groupKey = 'q' . $definition['number'];
-            $groups[$groupKey] = [
-                'number' => $definition['number'],
-                'status' => $isCompleted
-                    ? ($isAssisted ? 'assisted' : 'passed')
-                    : 'in_progress',
-                'points' => $definition['points'],
-                'is_assisted' => $isAssisted,
-            ];
-
-            if ($isAssisted) {
-                $assistedGroups[] = $groupKey;
-            }
-        }
-
-        $componentStatus = $allCasesCompleted
-            ? ($hasAssistedCase ? 'assisted' : 'passed')
-            : 'in_progress';
-
-        PracticeSubmission::updateOrCreate(
-            [
-                'user_id' => Auth::id(),
-                'course_lesson_id' => $lesson->id,
-                'practice_key' => 'aktivitas-1-4-matriks',
-            ],
-            [
-                'title' => 'Aktivitas 1.4 Pemodelan Matriks pada Kasus Komputasi Dunia Nyata',
-                'type' => 'aktivitas',
-                'answers' => $answers,
-                'feedback' => [
-                    'fields' => $fields,
-                    '_meta' => [
-                        'attempt_scope' => 'component',
-                        'max_attempts' => self::MAX_ATTEMPTS_PER_COMPONENT,
-                        'attempts' => 0,
-                        'status' => $componentStatus,
-                        'groups' => $groups,
-                        'completion_mode' => $allCasesCompleted
-                            ? ($hasAssistedCase ? 'bantuan' : 'mandiri')
-                            : null,
-                        'assisted_groups' => $assistedGroups,
-                    ],
-                ],
-                'score' => $score,
-                'max_score' => 100,
-                'is_completed' => $allCasesCompleted,
-                'submitted_at' => now(),
-            ]
-        );
     }
 
     private function buildModalPayload(
@@ -401,9 +279,7 @@ class PracticeController extends Controller
 
         $assisted = $componentStatus === 'assisted';
         $incomplete = $componentStatus === 'incomplete';
-        $attemptScopeLabel = $this->isSubbab14ActivityCase($practiceKey)
-            ? 'kasus ini'
-            : 'seluruh ' . strtolower($baseTitle);
+        $attemptScopeLabel = 'seluruh ' . strtolower($baseTitle);
 
         $unfinishedNumbers = collect($groups)
             ->filter(fn (array $group) => ! in_array($group['status'] ?? null, ['passed'], true))
@@ -576,120 +452,8 @@ class PracticeController extends Controller
         return $question['display_answer'] ?? ($question['accepted_answers'][0] ?? '');
     }
 
-    private function getSubbab14ActivityCaseDefinition(string $practiceKey): ?array
-    {
-        $questions = [
-            'game_a11' => ['accepted_answers' => ['3'], 'display_answer' => '3', 'feedback_correct' => 'Benar. Satu Pedang membutuhkan 3 Besi.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Besi untuk Pedang.'],
-            'game_a12' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar. Satu Pedang membutuhkan 1 Perak.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Perak untuk Pedang.'],
-            'game_a13' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar. Satu Pedang tidak membutuhkan Emas.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Emas untuk Pedang.'],
-            'game_a21' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar. Satu Perisai membutuhkan 2 Besi.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Besi untuk Perisai.'],
-            'game_a22' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar. Satu Perisai membutuhkan 2 Perak.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Perak untuk Perisai.'],
-            'game_a23' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar. Satu Perisai membutuhkan 1 Emas.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Emas untuk Perisai.'],
-            'game_a31' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar. Satu Zirah tidak membutuhkan Besi.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Besi untuk Zirah.'],
-            'game_a32' => ['accepted_answers' => ['4'], 'display_answer' => '4', 'feedback_correct' => 'Benar. Satu Zirah membutuhkan 4 Perak.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Perak untuk Zirah.'],
-            'game_a33' => ['accepted_answers' => ['3'], 'display_answer' => '3', 'feedback_correct' => 'Benar. Satu Zirah membutuhkan 3 Emas.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Emas untuk Zirah.'],
-            'game_b1' => ['accepted_answers' => ['50'], 'display_answer' => '50', 'feedback_correct' => 'Benar. Harga jual Pedang adalah 50 koin.', 'feedback_wrong' => 'Belum tepat. Lihat harga jual Pedang.'],
-            'game_b2' => ['accepted_answers' => ['80'], 'display_answer' => '80', 'feedback_correct' => 'Benar. Harga jual Perisai adalah 80 koin.', 'feedback_wrong' => 'Belum tepat. Lihat harga jual Perisai.'],
-            'game_b3' => ['accepted_answers' => ['120'], 'display_answer' => '120', 'feedback_correct' => 'Benar. Harga jual Zirah adalah 120 koin.', 'feedback_wrong' => 'Belum tepat. Lihat harga jual Zirah.'],
-
-            'cloud_a11' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar. Basic memakai 2 core CPU.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan CPU server Basic.'],
-            'cloud_a12' => ['accepted_answers' => ['4'], 'display_answer' => '4', 'feedback_correct' => 'Benar. Pro memakai 4 core CPU.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan CPU server Pro.'],
-            'cloud_a13' => ['accepted_answers' => ['8'], 'display_answer' => '8', 'feedback_correct' => 'Benar. Enterprise memakai 8 core CPU.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan CPU server Enterprise.'],
-            'cloud_b1' => ['accepted_answers' => ['64'], 'display_answer' => '64', 'feedback_correct' => 'Benar. Total CPU yang disewa adalah 64 core.', 'feedback_wrong' => 'Belum tepat. Lihat total CPU yang disebutkan.'],
-            'cloud_a21' => ['accepted_answers' => ['4'], 'display_answer' => '4', 'feedback_correct' => 'Benar. Basic memakai 4 GB RAM.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan RAM server Basic.'],
-            'cloud_a22' => ['accepted_answers' => ['16'], 'display_answer' => '16', 'feedback_correct' => 'Benar. Pro memakai 16 GB RAM.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan RAM server Pro.'],
-            'cloud_a23' => ['accepted_answers' => ['32'], 'display_answer' => '32', 'feedback_correct' => 'Benar. Enterprise memakai 32 GB RAM.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan RAM server Enterprise.'],
-            'cloud_b2' => ['accepted_answers' => ['200'], 'display_answer' => '200', 'feedback_correct' => 'Benar. Total RAM yang disewa adalah 200 GB.', 'feedback_wrong' => 'Belum tepat. Lihat total RAM yang disebutkan.'],
-            'cloud_a31' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar. Basic memakai 1 TB Storage.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Storage server Basic.'],
-            'cloud_a32' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar. Pro memakai 1 TB Storage.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Storage server Pro.'],
-            'cloud_a33' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar. Enterprise memakai 2 TB Storage.', 'feedback_wrong' => 'Belum tepat. Lihat kebutuhan Storage server Enterprise.'],
-            'cloud_b3' => ['accepted_answers' => ['20'], 'display_answer' => '20', 'feedback_correct' => 'Benar. Total Storage yang disewa adalah 20 TB.', 'feedback_wrong' => 'Belum tepat. Lihat total Storage yang disebutkan.'],
-
-            'debug_pernyataan' => [
-                'input_type' => 'checkbox',
-                'accepted_answers' => ['debug_a', 'debug_c'],
-                'feedback_correct' => 'Benar. Kesalahan terjadi pada Baris 1 dan Baris 3. Baris 2 sudah memuat koefisien yang sesuai.',
-                'feedback_wrong' => 'Belum tepat. Bandingkan setiap koefisien x, y, z, dan konstanta pada SPL asli dengan matriks input Programmer Junior.',
-            ],
-            'debug_a11' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar. Koefisien x pada Baris 1 adalah 1.', 'feedback_wrong' => 'Belum tepat. Variabel x tanpa angka memiliki koefisien 1.'],
-            'debug_a12' => ['accepted_answers' => ['-3'], 'display_answer' => '-3', 'feedback_correct' => 'Benar. Koefisien y pada Baris 1 adalah -3.', 'feedback_wrong' => 'Belum tepat. Perhatikan tanda negatif di depan 3y.'],
-            'debug_a13' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar. Variabel z tidak muncul pada Baris 1, sehingga koefisiennya 0.', 'feedback_wrong' => 'Belum tepat. Variabel z tidak muncul pada Baris 1.'],
-            'debug_b1' => ['accepted_answers' => ['5'], 'display_answer' => '5', 'feedback_correct' => 'Benar. Konstanta pada Baris 1 adalah 5.', 'feedback_wrong' => 'Belum tepat. Lihat ruas kanan Baris 1.'],
-            'debug_a21' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar. Koefisien x pada Baris 2 adalah 2.', 'feedback_wrong' => 'Belum tepat. Lihat koefisien x pada Baris 2.'],
-            'debug_a22' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar. Variabel y tanpa angka memiliki koefisien 1.', 'feedback_wrong' => 'Belum tepat. Variabel y tanpa angka memiliki koefisien 1.'],
-            'debug_a23' => ['accepted_answers' => ['4'], 'display_answer' => '4', 'feedback_correct' => 'Benar. Koefisien z pada Baris 2 adalah 4.', 'feedback_wrong' => 'Belum tepat. Lihat koefisien z pada Baris 2.'],
-            'debug_b2' => ['accepted_answers' => ['10'], 'display_answer' => '10', 'feedback_correct' => 'Benar. Konstanta pada Baris 2 adalah 10.', 'feedback_wrong' => 'Belum tepat. Lihat ruas kanan Baris 2.'],
-            'debug_a31' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar. Variabel x tidak muncul pada Baris 3, sehingga koefisiennya 0.', 'feedback_wrong' => 'Belum tepat. Variabel x tidak muncul pada Baris 3.'],
-            'debug_a32' => ['accepted_answers' => ['-1'], 'display_answer' => '-1', 'feedback_correct' => 'Benar. Koefisien y pada Baris 3 adalah -1.', 'feedback_wrong' => 'Belum tepat. Perhatikan tanda negatif di depan y.'],
-            'debug_a33' => ['accepted_answers' => ['5'], 'display_answer' => '5', 'feedback_correct' => 'Benar. Koefisien z pada Baris 3 adalah 5.', 'feedback_wrong' => 'Belum tepat. Lihat koefisien z pada Baris 3.'],
-            'debug_b3' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar. Konstanta pada Baris 3 adalah 2.', 'feedback_wrong' => 'Belum tepat. Lihat ruas kanan Baris 3.'],
-        ];
-
-        return match ($practiceKey) {
-            'aktivitas-1-4-kasus-1' => [
-                'title' => 'Aktivitas 1.4 - Kasus 1: Keseimbangan Ekonomi pada Game Development',
-                'type' => 'aktivitas',
-                'max_score' => 34,
-                'groups' => [
-                    'q1' => [
-                        'number' => 1,
-                        'fields' => [
-                            'game_a11', 'game_a12', 'game_a13',
-                            'game_a21', 'game_a22', 'game_a23',
-                            'game_a31', 'game_a32', 'game_a33',
-                            'game_b1', 'game_b2', 'game_b3',
-                        ],
-                        'points' => 34,
-                    ],
-                ],
-                'questions' => $questions,
-            ],
-            'aktivitas-1-4-kasus-2' => [
-                'title' => 'Aktivitas 1.4 - Kasus 2: Pemodelan Resource pada Cloud Computing',
-                'type' => 'aktivitas',
-                'max_score' => 33,
-                'groups' => [
-                    'q1' => [
-                        'number' => 2,
-                        'fields' => [
-                            'cloud_a11', 'cloud_a12', 'cloud_a13', 'cloud_b1',
-                            'cloud_a21', 'cloud_a22', 'cloud_a23', 'cloud_b2',
-                            'cloud_a31', 'cloud_a32', 'cloud_a33', 'cloud_b3',
-                        ],
-                        'points' => 33,
-                    ],
-                ],
-                'questions' => $questions,
-            ],
-            'aktivitas-1-4-kasus-3' => [
-                'title' => 'Aktivitas 1.4 - Kasus 3: Debugging Input Matriks',
-                'type' => 'aktivitas',
-                'max_score' => 33,
-                'groups' => [
-                    'q1' => [
-                        'number' => 3,
-                        'fields' => [
-                            'debug_pernyataan',
-                            'debug_a11', 'debug_a12', 'debug_a13', 'debug_b1',
-                            'debug_a21', 'debug_a22', 'debug_a23', 'debug_b2',
-                            'debug_a31', 'debug_a32', 'debug_a33', 'debug_b3',
-                        ],
-                        'points' => 33,
-                    ],
-                ],
-                'questions' => $questions,
-            ],
-            default => null,
-        };
-    }
-
     private function getPracticeDefinition(string $practiceKey): ?array
     {
-        $subbab14Case = $this->getSubbab14ActivityCaseDefinition($practiceKey);
-
-        if ($subbab14Case !== null) {
-            return $subbab14Case;
-        }
 
         return match ($practiceKey) {
             'aktivitas-1-1' => [
