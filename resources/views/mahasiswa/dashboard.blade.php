@@ -58,141 +58,53 @@
                                  style="width: {{ $progressPercentage }}%"></div>
                         </div>
 
-                        <p class="mt-4 text-sm text-slate-400">
-                            {{ $completedLessons }} dari {{ $totalLessons }} materi selesai.
+                        <p class="mt-4 text-sm leading-6 text-slate-400">
+                            {{ $completedLessons }} dari {{ $totalLessons }} materi telah selesai dipelajari.
                         </p>
-
-                        <div class="mt-6 grid grid-cols-2 gap-3">
-                            <div class="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                                <p class="text-xs text-slate-400">Nilai latihan</p>
-                                <p class="mt-2 text-2xl font-black text-white">
-                                    {{ $averagePracticeScore !== null ? $averagePracticeScore : '-' }}
-                                </p>
-                            </div>
-
-                            <div class="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                                <p class="text-xs text-slate-400">Durasi belajar</p>
-                                <p class="mt-2 text-2xl font-black text-white">
-                                    {{ $durationMinutes }}
-                                </p>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </section>
 
-            <section class="grid gap-5 md:grid-cols-4">
-                <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-6 backdrop-blur-xl">
-                    <p class="text-sm font-semibold text-slate-400">Kelas Diikuti</p>
-                    <p class="mt-4 text-4xl font-black text-white">{{ $joinedClasses->count() }}</p>
-                    <p class="mt-2 text-xs text-cyan-200">Kelas aktif</p>
-                </div>
-
-                <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-6 backdrop-blur-xl">
-                    <p class="text-sm font-semibold text-slate-400">Materi Selesai</p>
-                    <p class="mt-4 text-4xl font-black text-white">{{ $completedLessons }}</p>
-                    <p class="mt-2 text-xs text-cyan-200">Dari {{ $totalLessons }} materi</p>
-                </div>
-
-                <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-6 backdrop-blur-xl">
-                    <p class="text-sm font-semibold text-slate-400">Latihan Dikerjakan</p>
-                    <p class="mt-4 text-4xl font-black text-white">{{ $practiceCount }}</p>
-                    <p class="mt-2 text-xs text-cyan-200">Aktivitas tersimpan</p>
-                </div>
-
-                <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-6 backdrop-blur-xl">
-                    <p class="text-sm font-semibold text-slate-400">Nilai Kuis</p>
-                    <p class="mt-4 text-4xl font-black text-white">-</p>
-                    <p class="mt-2 text-xs text-cyan-200">Belum tersedia</p>
-                </div>
-            </section>
-
-            <section class="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-                <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-6 backdrop-blur-xl">
-                    <div class="flex items-center justify-between gap-3">
+            <section class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-6 backdrop-blur-xl">
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
                         <h2 class="text-lg font-bold text-white">
-                            Kelas Saya
+                            Kelas Diikuti
                         </h2>
 
-                        <a href="{{ route('mahasiswa.kelas.index') }}"
-                           class="text-sm font-bold text-cyan-200 hover:text-cyan-100">
-                            Kelola →
-                        </a>
+                        <p class="mt-1 text-sm text-slate-400">
+                            Daftar kelas yang Anda ikuti untuk mengakses kuis sesuai ketentuan dosen.
+                        </p>
                     </div>
 
-                    <div class="mt-5 space-y-3">
-                        @forelse ($joinedClasses as $classGroup)
-                            <div class="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-                                <div class="flex items-start justify-between gap-3">
-                                    <div>
-                                        <p class="font-bold text-white">{{ $classGroup->name }}</p>
-                                        <p class="mt-1 text-sm text-slate-400">
-                                            Dosen: {{ $classGroup->dosen->name }}
-                                        </p>
-                                    </div>
-
-                                    <div class="rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-center">
-                                        <p class="text-xs text-cyan-200">KKM</p>
-                                        <p class="text-lg font-black text-white">{{ $classGroup->kkm }}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        @empty
-                            <div class="rounded-2xl border border-yellow-300/20 bg-yellow-400/10 p-5 text-sm text-yellow-200">
-                                Anda belum tergabung dalam kelas. Masukkan token dari dosen untuk mengakses kuis.
-                            </div>
-                        @endforelse
+                    <div class="w-fit rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3">
+                        <p class="text-xs font-semibold text-cyan-200">Jumlah Kelas</p>
+                        <p class="mt-1 text-2xl font-black text-white">{{ $joinedClasses->count() }}</p>
                     </div>
                 </div>
 
-                <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-6 backdrop-blur-xl">
-                    <h2 class="text-lg font-bold text-white">
-                        Aktivitas Terbaru
-                    </h2>
+                <div class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    @forelse ($joinedClasses as $classGroup)
+                        <div class="rounded-2xl border border-white/10 bg-slate-950/40 p-5">
+                            <div class="flex items-start justify-between gap-3">
+                                <div>
+                                    <p class="font-bold text-white">{{ $classGroup->name }}</p>
+                                    <p class="mt-1 text-sm text-slate-400">
+                                        Dosen: {{ $classGroup->dosen->name }}
+                                    </p>
+                                </div>
 
-                    <div class="mt-5 space-y-3">
-                        @if ($latestPractice)
-                            <div class="rounded-2xl border border-white/10 bg-slate-950/40 p-5">
-                                <p class="text-sm font-bold text-cyan-200">
-                                    Latihan terakhir
-                                </p>
-
-                                <h3 class="mt-2 font-bold text-white">
-                                    {{ $latestPractice->title }}
-                                </h3>
-
-                                <p class="mt-2 text-sm text-slate-400">
-                                    Nilai: {{ $latestPractice->score }}/{{ $latestPractice->max_score }}
-                                </p>
-
-                                <p class="mt-1 text-sm text-slate-500">
-                                    {{ $latestPractice->submitted_at?->format('d M Y H:i') }}
-                                </p>
+                                <div class="rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-center">
+                                    <p class="text-xs text-cyan-200">KKM</p>
+                                    <p class="text-lg font-black text-white">{{ $classGroup->kkm }}</p>
+                                </div>
                             </div>
-                        @endif
-
-                        @if ($latestProgress)
-                            <div class="rounded-2xl border border-white/10 bg-slate-950/40 p-5">
-                                <p class="text-sm font-bold text-cyan-200">
-                                    Progress materi terakhir
-                                </p>
-
-                                <h3 class="mt-2 font-bold text-white">
-                                    {{ $latestProgress->lesson->title }}
-                                </h3>
-
-                                <p class="mt-2 text-sm text-slate-400">
-                                    {{ $latestProgress->completed ? 'Materi sudah selesai.' : 'Materi sedang dipelajari.' }}
-                                </p>
-                            </div>
-                        @endif
-
-                        @if (! $latestPractice && ! $latestProgress)
-                            <div class="rounded-2xl border border-white/10 bg-slate-950/40 p-5 text-sm text-slate-400">
-                                Belum ada aktivitas belajar yang tercatat.
-                            </div>
-                        @endif
-                    </div>
+                        </div>
+                    @empty
+                        <div class="rounded-2xl border border-yellow-300/20 bg-yellow-400/10 p-5 text-sm leading-6 text-yellow-200 md:col-span-2 xl:col-span-3">
+                            Anda belum tergabung dalam kelas. Masukkan token dari dosen untuk mengakses kuis.
+                        </div>
+                    @endforelse
                 </div>
             </section>
         </div>

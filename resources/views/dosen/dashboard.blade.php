@@ -19,8 +19,8 @@
                         </h1>
 
                         <p class="mt-5 max-w-3xl text-base leading-8 text-slate-300">
-                            Pantau kelas, progress materi, nilai latihan, dan aktivitas mahasiswa
-                            melalui dashboard learning analytics.
+                            Pantau kelas, progres materi, durasi belajar, dan aktivitas mahasiswa
+                            melalui dashboard RuangOBE.
                         </p>
                     </div>
 
@@ -45,17 +45,17 @@
                 </div>
 
                 <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-6 backdrop-blur-xl">
-                    <p class="text-sm font-semibold text-slate-400">Rata-rata Progress</p>
+                    <p class="text-sm font-semibold text-slate-400">Rata-rata Progres</p>
                     <p class="mt-4 text-4xl font-black text-white">{{ $averageProgress }}%</p>
-                    <p class="mt-2 text-xs text-cyan-200">{{ $completedProgress }} progress selesai</p>
+                    <p class="mt-2 text-xs text-cyan-200">{{ $completedProgress }} progres selesai</p>
                 </div>
 
                 <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-6 backdrop-blur-xl">
-                    <p class="text-sm font-semibold text-slate-400">Nilai Latihan</p>
-                    <p class="mt-4 text-4xl font-black text-white">
-                        {{ $averagePracticeScore !== null ? $averagePracticeScore : '-' }}
+                    <p class="text-sm font-semibold text-slate-400">Rata-rata Durasi Belajar</p>
+                    <p class="mt-4 text-2xl font-black text-white">
+                        {{ $averageStudyDuration }}
                     </p>
-                    <p class="mt-2 text-xs text-cyan-200">{{ $practiceCount }} latihan tersimpan</p>
+                    <p class="mt-2 text-xs text-cyan-200">Per mahasiswa</p>
                 </div>
             </section>
 
@@ -139,7 +139,7 @@
             <section class="grid gap-5 lg:grid-cols-2">
                 <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-6 backdrop-blur-xl">
                     <h2 class="text-lg font-bold text-white">
-                        Latihan Terbaru
+                        Aktivitas Terbaru
                     </h2>
 
                     <div class="mt-5 space-y-3">
@@ -154,13 +154,17 @@
                                 </p>
 
                                 <p class="mt-1 text-sm text-slate-400">
-                                    Nilai {{ $submission->score }}/{{ $submission->max_score }}
+                                    @if ((int) $submission->max_score > 0)
+                                        Nilai {{ $submission->score }}/{{ $submission->max_score }}
+                                    @else
+                                        Komponen pembelajaran disimpan
+                                    @endif
                                     · {{ $submission->submitted_at?->format('d M Y H:i') }}
                                 </p>
                             </div>
                         @empty
                             <div class="rounded-2xl border border-white/10 bg-slate-950/40 p-5 text-sm text-slate-400">
-                                Belum ada latihan yang dikumpulkan.
+                                Belum ada aktivitas yang tercatat.
                             </div>
                         @endforelse
                     </div>
@@ -168,7 +172,7 @@
 
                 <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-6 backdrop-blur-xl">
                     <h2 class="text-lg font-bold text-white">
-                        Progress Materi Terbaru
+                        Progres Materi Terbaru
                     </h2>
 
                     <div class="mt-5 space-y-3">
@@ -188,8 +192,8 @@
                                 </p>
                             </div>
                         @empty
-                            <div class="rounded-2xl border border-white/10 bg-slate-950/40 p-5 text-sm text-slate-400">
-                                Belum ada progress materi yang tercatat.
+                            <div class="rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-sm text-slate-400">
+                                Belum ada progres materi yang tercatat.
                             </div>
                         @endforelse
                     </div>

@@ -30,9 +30,7 @@ class DashboardController extends Controller
             ->values();
 
         $totalMahasiswa = $studentIds->count();
-
         $totalClasses = $classGroups->count();
-
         $activeClasses = $classGroups->where('is_active', true)->count();
 
         $totalLessons = CourseLesson::count();
@@ -47,15 +45,14 @@ class DashboardController extends Controller
             ? round(($completedProgress / $totalPossibleProgress) * 100)
             : 0;
 
-        $practiceCount = PracticeSubmission::whereIn('user_id', $studentIds)
-            ->count();
+        $totalDurationSeconds = UserLessonProgress::whereIn('user_id', $studentIds)
+            ->sum('duration_seconds');
 
-        $averagePracticeScore = PracticeSubmission::whereIn('user_id', $studentIds)
-            ->avg('score');
+        $averageDurationMinutes = $totalMahasiswa > 0
+            ? (int) round(($totalDurationSeconds / $totalMahasiswa) / 60)
+            : 0;
 
-        $averagePracticeScore = $averagePracticeScore !== null
-            ? round($averagePracticeScore)
-            : null;
+        $averageStudyDuration = $this->formatDuration($averageDurationMinutes);
 
         $latestPracticeSubmissions = PracticeSubmission::with(['user', 'lesson.module'])
             ->whereIn('user_id', $studentIds)
@@ -95,11 +92,30 @@ class DashboardController extends Controller
             'totalLessons',
             'completedProgress',
             'averageProgress',
-            'practiceCount',
-            'averagePracticeScore',
+            'averageStudyDuration',
             'latestPracticeSubmissions',
             'latestProgress',
             'topMahasiswa'
         ));
+    }
+
+    private function formatDuration(int $totalMinutes): string
+    {
+        if ($totalMinutes <= 0) {
+            return '0 menit';
+        }
+
+        $hours = intdiv($totalMinutes, 60);
+        $minutes = $totalMinutes % 60;
+
+        if ($hours === 0) {
+            return $minutes . ' menit';
+        }
+
+        if ($minutes === 0) {
+            return $hours . ' jam';
+        }
+
+        return $hours . ' jam ' . $minutes . ' menit';
     }
 }
