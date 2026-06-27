@@ -182,6 +182,14 @@
                     return Array.from(checkboxes).some(input => input.checked);
                 }
 
+                const obeOperationInput = card.querySelector('[data-obe-operation-input]');
+                const obeMatrixInputs = card.querySelectorAll('[data-obe-matrix-input]');
+
+                if (obeOperationInput && obeMatrixInputs.length > 0) {
+                    return obeOperationInput.value.trim() !== ''
+                        && Array.from(obeMatrixInputs).every(input => input.value.trim() !== '');
+                }
+
                 const finalInputs = card.querySelectorAll('[data-final-answer-input]');
 
                 if (finalInputs.length > 0) {
@@ -402,7 +410,7 @@
                                     @endif
                                 </div>
 
-                                <div class="flex-1 overflow-visible px-4 py-3 sm:px-5 lg:overflow-hidden">
+                                <div class="flex-1 overflow-visible px-4 py-3 pb-6 sm:px-5 lg:overflow-y-auto lg:overscroll-contain">
                                     @if ($matrixRowTex)
                                         <div class="mb-4 flex justify-center overflow-x-auto pb-1">
                                             <div class="rounded-2xl border border-slate-300 bg-slate-50 px-7 py-3 text-lg font-black text-slate-900">
@@ -473,6 +481,194 @@
                                                 class="mt-2 w-full rounded-2xl border-slate-300 bg-white px-4 py-3 text-center text-lg font-bold text-slate-900 shadow-sm focus:border-cyan-500 focus:ring-cyan-500"
                                                 placeholder="Ketik jawaban Anda di sini">
                                         </label>
+                                    @elseif ($question->question_type === 'obe_matrix_operation')
+                                        @php
+                                            $rows = (int) ($data['rows'] ?? count($data['initial_matrix'] ?? []));
+                                            $columns = (int) ($data['columns'] ?? count(($data['initial_matrix'][0] ?? [])));
+                                            $separatorBefore = (int) ($data['separator_before_column'] ?? $columns);
+                                            $initialMatrix = $data['initial_matrix'] ?? [];
+                                        @endphp
+
+                                        <div class="space-y-4 pb-3">
+                                            <div class="overflow-x-auto pb-2">
+                                                <div class="mx-auto w-max rounded-2xl border border-slate-300 bg-slate-50 p-4">
+                                                    <p class="mb-3 text-center text-sm font-black text-slate-700">
+                                                        Matriks teraugmentasi awal
+                                                    </p>
+
+                                                    <div class="grid gap-2" style="grid-template-columns: repeat({{ $columns }}, 64px);">
+                                                        @for ($r = 0; $r < $rows; $r++)
+                                                            @for ($c = 0; $c < $columns; $c++)
+                                                                <div class="flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-center font-black text-slate-900 {{ ($c + 1) === $separatorBefore ? 'border-l-4 border-l-slate-700' : '' }}">
+                                                                    {{ $initialMatrix[$r][$c] ?? '' }}
+                                                                </div>
+                                                            @endfor
+                                                        @endfor
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+                                                <div
+                                                    x-data="{
+                                                        workspaceLatex: @js($savedResponse?->canvas_data ?? ''),
+
+                                                        initializeWorkspace() {
+                                                            const setupMathField = () => {
+                                                                const mathField = this.$refs.workspaceField;
+
+                                                                if (! mathField) {
+                                                                    return;
+                                                                }
+
+                                                                let latex = (this.workspaceLatex || '').trim();
+                                                                const isMultiline =
+                                                                    latex.includes('\\begin{array}') ||
+                                                                    latex.includes('\\begin{aligned}');
+
+                                                                if (! latex) {
+                                                                    latex = '\\begin{array}{l}\\placeholder{}\\end{array}';
+                                                                } else if (! isMultiline) {
+                                                                    latex = `\\begin{array}{l}${latex}\\end{array}`;
+                                                                }
+
+                                                                mathField.value = latex;
+                                                                this.workspaceLatex = mathField.value;
+
+                                                                const existingBindings = Array.isArray(mathField.keybindings)
+                                                                    ? mathField.keybindings.filter(binding => binding.key !== 'enter')
+                                                                    : [];
+
+                                                                mathField.keybindings = [
+                                                                    {
+                                                                        key: 'enter',
+                                                                        command: ['insert', '\\\\'],
+                                                                    },
+                                                                    ...existingBindings,
+                                                                ];
+                                                            };
+
+                                                            if (customElements.get('math-field')) {
+                                                                this.$nextTick(setupMathField);
+                                                            } else {
+                                                                customElements.whenDefined('math-field').then(() => {
+                                                                    this.$nextTick(setupMathField);
+                                                                });
+                                                            }
+                                                        },
+
+                                                        addNewLine() {
+                                                            const mathField = this.$refs.workspaceField;
+
+                                                            if (! mathField) {
+                                                                return;
+                                                            }
+
+                                                            mathField.focus();
+                                                            mathField.insert('\\\\');
+                                                            this.workspaceLatex = mathField.value;
+                                                            scheduleSave();
+                                                        }
+                                                    }"
+                                                    x-init="initializeWorkspace()"
+                                                    class="rounded-2xl border border-slate-300 bg-slate-50 p-4">
+
+                                                    <div class="flex items-center justify-between gap-3">
+                                                        <p class="text-sm font-black text-slate-700">
+                                                            Langkah Pengerjaan
+                                                        </p>
+
+                                                        <button type="button"
+                                                                @click="addNewLine()"
+                                                                class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-100">
+                                                            Baris Baru
+                                                        </button>
+                                                    </div>
+
+                                                    <div class="mt-3 overflow-hidden rounded-2xl border border-slate-300 bg-white">
+                                                        <math-field
+                                                            x-ref="workspaceField"
+                                                            math-virtual-keyboard-policy="auto"
+                                                            smart-fence="on"
+                                                            @input="workspaceLatex = $event.target.value; scheduleSave()"
+                                                            class="block min-h-[190px] w-full border-0 bg-white px-4 py-4 text-left text-lg text-slate-900 shadow-none outline-none sm:min-h-[210px]">
+                                                        </math-field>
+                                                    </div>
+
+                                                    <input type="hidden"
+                                                           name="responses[{{ $question->id }}][canvas_data]"
+                                                           x-model="workspaceLatex">
+                                                </div>
+
+                                                <div class="space-y-3 pb-2">
+                                                    <div x-data="{
+                                                            operation: @js($savedValue['operation'] ?? ''),
+
+                                                            insertToken(token) {
+                                                                const input = this.$refs.operationInput;
+
+                                                                if (! input) {
+                                                                    return;
+                                                                }
+
+                                                                const start = input.selectionStart ?? input.value.length;
+                                                                const end = input.selectionEnd ?? input.value.length;
+
+                                                                input.focus();
+                                                                input.setRangeText(token, start, end, 'end');
+                                                                this.operation = input.value;
+                                                                refreshStatuses();
+                                                                scheduleSave();
+                                                            }
+                                                        }"
+                                                        class="rounded-2xl border border-slate-300 bg-slate-50 p-4">
+
+                                                        <p class="text-sm font-black text-slate-700">
+                                                            Notasi Operasi
+                                                        </p>
+
+                                                        <input type="text"
+                                                               x-ref="operationInput"
+                                                               name="responses[{{ $question->id }}][operation]"
+                                                               x-model="operation"
+                                                               autocomplete="off"
+                                                               data-obe-operation-input
+                                                               @input="refreshStatuses(); scheduleSave()"
+                                                               placeholder="Ketik notasi operasi"
+                                                               class="mt-3 w-full rounded-xl border-slate-300 bg-white px-4 py-3 text-center font-bold text-slate-900 focus:border-cyan-500 focus:ring-cyan-500">
+
+                                                        <div class="mt-3 grid grid-cols-4 gap-2">
+                                                            @foreach (['B1', 'B2', 'B3', '←', '↔', '+', '−', '1/'] as $token)
+                                                                <button type="button"
+                                                                        @click="insertToken(@js($token))"
+                                                                        class="rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs font-black text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50">
+                                                                    {{ $token }}
+                                                                </button>
+                                                            @endforeach
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="overflow-x-auto rounded-2xl border border-slate-300 bg-slate-50 p-4">
+                                                        <p class="mb-3 text-center text-sm font-black text-slate-700">
+                                                            Hasil matriks setelah operasi
+                                                        </p>
+
+                                                        <div class="mx-auto grid w-max gap-2" style="grid-template-columns: repeat({{ $columns }}, 58px);">
+                                                            @for ($r = 0; $r < $rows; $r++)
+                                                                @for ($c = 0; $c < $columns; $c++)
+                                                                    <input type="text"
+                                                                           name="responses[{{ $question->id }}][result_matrix][{{ $r }}][{{ $c }}]"
+                                                                           value="{{ $savedValue['result_matrix'][$r][$c] ?? '' }}"
+                                                                           autocomplete="off"
+                                                                           data-obe-matrix-input
+                                                                           class="h-11 rounded-xl border-slate-300 bg-white text-center font-bold text-slate-900 focus:border-cyan-500 focus:ring-cyan-500 {{ ($c + 1) === $separatorBefore ? 'border-l-4 border-l-slate-700' : '' }}">
+                                                                @endfor
+                                                            @endfor
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     @elseif ($question->question_type === 'canvas_final_answer')
                                         <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_260px]">
                                             <div

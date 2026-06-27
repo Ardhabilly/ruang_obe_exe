@@ -12,6 +12,7 @@ class DatabaseSeeder extends Seeder
             DosenSeeder::class,
             CourseSeeder::class,
             QuizBabOneSeeder::class,
+            QuizBabTwoSeeder::class,
         ]);
     }
 }

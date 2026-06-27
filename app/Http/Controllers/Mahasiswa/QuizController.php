@@ -539,6 +539,29 @@ class QuizController extends Controller
                 }
                 break;
 
+            case 'obe_matrix_operation':
+                $operation = $this->normalizeObeOperation($payload['operation'] ?? '');
+
+                $acceptedOperations = $question->accepted_answers
+                    ?: [$question->answer_key['operation'] ?? ''];
+
+                $acceptedOperations = collect($acceptedOperations)
+                    ->map(fn ($item) => $this->normalizeObeOperation($item))
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                $operationCorrect = in_array($operation, $acceptedOperations, true);
+
+                $matrixCorrect = $this->compareMatrix(
+                    $payload['result_matrix'] ?? [],
+                    $question->answer_key['matrix'] ?? []
+                );
+
+                $isCorrect = $operationCorrect && $matrixCorrect;
+                break;
+
             case 'matrix':
             case 'augmented_matrix':
                 $isCorrect = $this->compareMatrix(
@@ -574,6 +597,8 @@ class QuizController extends Controller
             'checkbox' => ! empty($payload['selected']),
             'short_text', 'math_notation' => trim((string) ($payload['answer'] ?? '')) !== '',
             'canvas_final_answer' => $this->hasAnyValue($payload['final'] ?? []),
+            'obe_matrix_operation' => trim((string) ($payload['operation'] ?? '')) !== ''
+                && $this->hasAnyValue($payload['result_matrix'] ?? []),
             'matrix', 'augmented_matrix' => $this->hasAnyValue($payload['matrix'] ?? []),
             'matrix_equation' => $this->hasAnyValue($payload['A'] ?? []) || $this->hasAnyValue($payload['b'] ?? []),
             default => false,
@@ -644,6 +669,23 @@ class QuizController extends Controller
         }
 
         return $this->normalizeText($value);
+    }
+
+    private function normalizeObeOperation($value): string
+    {
+        $value = strtolower(trim((string) $value));
+
+        $value = str_replace(
+            ['₁', '₂', '₃', '₄', '−', '–', '—', '↔', '⟷', '⇄', '←', '⟵', '⟸', '×', '·'],
+            ['1', '2', '3', '4', '-', '-', '-', '<->', '<->', '<->', '<-', '<-', '<-', '', ''],
+            $value
+        );
+
+        $value = str_ireplace(['baris'], ['b'], $value);
+        $value = str_replace(['*', '_', '(', ')'], '', $value);
+        $value = preg_replace('/\s+/', '', $value);
+
+        return str_replace('+-', '-', $value);
     }
 
     private function normalizeText($value): string
