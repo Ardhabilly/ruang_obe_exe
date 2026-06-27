@@ -577,12 +577,6 @@
                                                         <p class="text-sm font-black text-slate-700">
                                                             Langkah Pengerjaan
                                                         </p>
-
-                                                        <button type="button"
-                                                                @click="addNewLine()"
-                                                                class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-100">
-                                                            Baris Baru
-                                                        </button>
                                                     </div>
 
                                                     <div class="mt-3 overflow-hidden rounded-2xl border border-slate-300 bg-white">
