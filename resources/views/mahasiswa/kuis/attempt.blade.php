@@ -190,6 +190,13 @@
                         && Array.from(obeMatrixInputs).every(input => input.value.trim() !== '');
                 }
 
+                const gaussEchelonInputs = card.querySelectorAll('[data-gauss-echelon-input]');
+                const gaussFinalInputs = card.querySelectorAll('[data-gauss-final-input]');
+
+                if (gaussEchelonInputs.length > 0 && gaussFinalInputs.length > 0) {
+                    return Array.from(gaussEchelonInputs).every(input => input.value.trim() !== '')
+                        && Array.from(gaussFinalInputs).every(input => input.value.trim() !== '');
+                }
                 const finalInputs = card.querySelectorAll('[data-final-answer-input]');
 
                 if (finalInputs.length > 0) {
@@ -344,12 +351,12 @@
                                 $matrixRowTex = null;
                                 $extraNote = null;
 
-                                if ($question->order_number === 5) {
+                                if (($quiz->module?->slug === 'bab-1-sistem-persamaan-linear') && $question->order_number === 5) {
                                     $displayText = 'Diberikan baris kedua dari sebuah Augmented Matrix yang memuat variabel x, y, dan z. Tuliskan bentuk persamaan linear utuh dari array di bawah ini.';
                                     $matrixRowTex = '\left[\,0\quad 3\quad -1\mid 8\,\right]';
                                 }
 
-                                if ($question->order_number === 7) {
+                                if (($quiz->module?->slug === 'bab-1-sistem-persamaan-linear') && $question->order_number === 7) {
                                     $displayText = 'Selesaikan Sistem Persamaan Linear berikut.';
                                     $equationsTex = [
                                         'x + y + z = 6',
@@ -359,7 +366,7 @@
                                     $extraNote = 'Tuliskan langkah pengerjaan pada area yang tersedia, lalu masukkan jawaban akhir.';
                                 }
 
-                                if ($question->order_number === 8) {
+                                if (($quiz->module?->slug === 'bab-1-sistem-persamaan-linear') && $question->order_number === 8) {
                                     $displayText = 'Perhatikan Sistem Persamaan Linear berikut. Ekstraksilah koefisien dari ketiga persamaan ke dalam struktur Matriks Koefisien (A) berukuran 3 × 3.';
                                     $equationsTex = [
                                         '2x + 3y - z = 5',
@@ -368,7 +375,7 @@
                                     ];
                                 }
 
-                                if ($question->order_number === 9) {
+                                if (($quiz->module?->slug === 'bab-1-sistem-persamaan-linear') && $question->order_number === 9) {
                                     $displayText = 'Diberikan sebuah Sistem Persamaan Linear. Lengkapi struktur notasi standar Ax = b berdasarkan komponen variabel dan nilai hasil dari sistem di bawah ini.';
                                     $equationsTex = [
                                         '4x - y + 2z = 7',
@@ -377,7 +384,7 @@
                                     ];
                                 }
 
-                                if ($question->order_number === 10) {
+                                if (($quiz->module?->slug === 'bab-1-sistem-persamaan-linear') && $question->order_number === 10) {
                                     $displayText = 'Sebagai tantangan terakhir, ubahlah Sistem Persamaan Linear di bawah ini ke dalam format komputasi tunggal atau Augmented Matrix.';
                                     $equationsTex = [
                                         'x - 2y + 3z = 9',
@@ -663,7 +670,143 @@
                                                 </div>
                                             </div>
                                         </div>
-                                    @elseif ($question->question_type === 'canvas_final_answer')
+                                    @elseif ($question->question_type === 'gauss_elimination')
+                                        @php
+                                            $rows = (int) ($data['rows'] ?? 3);
+                                            $columns = (int) ($data['columns'] ?? 4);
+                                            $separatorBefore = (int) ($data['separator_before_column'] ?? $columns);
+                                            $equations = $data['equations'] ?? [];
+                                            $finalFields = $data['final_fields'] ?? ['x', 'y', 'z'];
+                                            $finalLabels = $data['final_labels'] ?? [];
+                                        @endphp
+
+                                        <div class="space-y-4 pb-3">
+                                            <div class="overflow-x-auto pb-1">
+                                                <div class="mx-auto w-max rounded-2xl border border-slate-300 bg-slate-50 px-6 py-3 text-center text-base font-normal leading-7 text-slate-900">
+                                                    @foreach ($equations as $equation)
+                                                        <div>\({{ $equation }}\)</div>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+
+                                            <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+                                                <div
+                                                    x-data="{
+                                                        workspaceLatex: @js($savedResponse?->canvas_data ?? ''),
+
+                                                        initializeWorkspace() {
+                                                            const setupMathField = () => {
+                                                                const mathField = this.$refs.workspaceField;
+
+                                                                if (! mathField) {
+                                                                    return;
+                                                                }
+
+                                                                let latex = (this.workspaceLatex || '').trim();
+                                                                const isMultiline =
+                                                                    latex.includes('\\begin{array}') ||
+                                                                    latex.includes('\\begin{aligned}');
+
+                                                                if (! latex) {
+                                                                    latex = '\\begin{array}{l}\\placeholder{}\\end{array}';
+                                                                } else if (! isMultiline) {
+                                                                    latex = `\\begin{array}{l}${latex}\\end{array}`;
+                                                                }
+
+                                                                mathField.value = latex;
+                                                                this.workspaceLatex = mathField.value;
+
+                                                                const existingBindings = Array.isArray(mathField.keybindings)
+                                                                    ? mathField.keybindings.filter(binding => binding.key !== 'enter')
+                                                                    : [];
+
+                                                                mathField.keybindings = [
+                                                                    {
+                                                                        key: 'enter',
+                                                                        command: ['insert', '\\\\'],
+                                                                    },
+                                                                    ...existingBindings,
+                                                                ];
+                                                            };
+
+                                                            if (customElements.get('math-field')) {
+                                                                this.$nextTick(setupMathField);
+                                                            } else {
+                                                                customElements.whenDefined('math-field').then(() => {
+                                                                    this.$nextTick(setupMathField);
+                                                                });
+                                                            }
+                                                        }
+                                                    }"
+                                                    x-init="initializeWorkspace()"
+                                                    class="rounded-2xl border border-slate-300 bg-slate-50 p-4">
+
+                                                    <p class="text-sm font-black text-slate-700">
+                                                        Langkah Pengerjaan
+                                                    </p>
+
+                                                    <div class="mt-3 overflow-hidden rounded-2xl border border-slate-300 bg-white">
+                                                        <math-field
+                                                            x-ref="workspaceField"
+                                                            math-virtual-keyboard-policy="auto"
+                                                            smart-fence="on"
+                                                            @input="workspaceLatex = $event.target.value; scheduleSave()"
+                                                            class="block min-h-[250px] w-full border-0 bg-white px-4 py-4 text-left text-lg text-slate-900 shadow-none outline-none">
+                                                        </math-field>
+                                                    </div>
+
+                                                    <input type="hidden"
+                                                           name="responses[{{ $question->id }}][canvas_data]"
+                                                           x-model="workspaceLatex">
+                                                </div>
+
+                                                <div class="space-y-3 pb-2">
+                                                    <div class="overflow-x-auto rounded-2xl border border-slate-300 bg-slate-50 p-4">
+                                                        <p class="mb-3 text-center text-sm font-black text-slate-700">
+                                                            Bentuk Eselon Baris
+                                                        </p>
+
+                                                        <div class="mx-auto grid w-max gap-2" style="grid-template-columns: repeat({{ $columns }}, 58px);">
+                                                            @for ($r = 0; $r < $rows; $r++)
+                                                                @for ($c = 0; $c < $columns; $c++)
+                                                                    <input
+                                                                        type="text"
+                                                                        name="responses[{{ $question->id }}][echelon_matrix][{{ $r }}][{{ $c }}]"
+                                                                        value="{{ $savedValue['echelon_matrix'][$r][$c] ?? '' }}"
+                                                                        autocomplete="off"
+                                                                        data-gauss-echelon-input
+                                                                        class="h-11 rounded-xl border-slate-300 bg-white text-center font-bold text-slate-900 focus:border-cyan-500 focus:ring-cyan-500 {{ ($c + 1) === $separatorBefore ? 'border-l-4 border-l-slate-700' : '' }}">
+                                                                @endfor
+                                                            @endfor
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="rounded-2xl border border-slate-300 bg-slate-50 p-4">
+                                                        <p class="text-sm font-black text-slate-700">
+                                                            Hasil Akhir
+                                                        </p>
+
+                                                        <div class="mt-3 grid gap-2">
+                                                            @foreach ($finalFields as $field)
+                                                                <label class="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-2">
+                                                                    <span class="truncate text-sm font-black text-slate-900">
+                                                                        {{ $finalLabels[$field] ?? $field }} =
+                                                                    </span>
+
+                                                                    <input
+                                                                        type="text"
+                                                                        name="responses[{{ $question->id }}][final][{{ $field }}]"
+                                                                        value="{{ $savedValue['final'][$field] ?? '' }}"
+                                                                        autocomplete="off"
+                                                                        data-gauss-final-input
+                                                                        class="h-10 min-w-0 w-full rounded-xl border-slate-300 bg-white px-3 text-center font-bold text-slate-900 focus:border-cyan-500 focus:ring-cyan-500">
+                                                                </label>
+                                                            @endforeach
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>                                    @elseif ($question->question_type === 'canvas_final_answer')
                                         <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_260px]">
                                             <div
                                                 x-data="{

@@ -562,6 +562,19 @@ class QuizController extends Controller
                 $isCorrect = $operationCorrect && $matrixCorrect;
                 break;
 
+            case 'gauss_elimination':
+                $matrixCorrect = $this->isValidGaussEchelonMatrix(
+                    $payload['echelon_matrix'] ?? [],
+                    $question->answer_key['initial_matrix'] ?? []
+                );
+
+                $finalCorrect = $this->compareGaussFinalAnswers(
+                    $payload['final'] ?? [],
+                    $question->accepted_answers ?? []
+                );
+
+                $isCorrect = $matrixCorrect && $finalCorrect;
+                break;
             case 'matrix':
             case 'augmented_matrix':
                 $isCorrect = $this->compareMatrix(
@@ -599,7 +612,7 @@ class QuizController extends Controller
             'canvas_final_answer' => $this->hasAnyValue($payload['final'] ?? []),
             'obe_matrix_operation' => trim((string) ($payload['operation'] ?? '')) !== ''
                 && $this->hasAnyValue($payload['result_matrix'] ?? []),
-            'matrix', 'augmented_matrix' => $this->hasAnyValue($payload['matrix'] ?? []),
+            'gauss_elimination' => $this->hasCompleteGaussResponse($question, $payload),            'matrix', 'augmented_matrix' => $this->hasAnyValue($payload['matrix'] ?? []),
             'matrix_equation' => $this->hasAnyValue($payload['A'] ?? []) || $this->hasAnyValue($payload['b'] ?? []),
             default => false,
         };
@@ -648,6 +661,267 @@ class QuizController extends Controller
         return true;
     }
 
+    private function hasCompleteGaussResponse($question, array $payload): bool
+    {
+        $data = $question->question_data ?? [];
+        $rows = (int) ($data['rows'] ?? 0);
+        $columns = (int) ($data['columns'] ?? 0);
+        $matrix = $payload['echelon_matrix'] ?? [];
+        $final = $payload['final'] ?? [];
+        $finalFields = $data['final_fields'] ?? array_keys($question->accepted_answers ?? []);
+
+        if ($rows < 1 || $columns < 1 || ! is_array($matrix) || ! is_array($final)) {
+            return false;
+        }
+
+        for ($row = 0; $row < $rows; $row++) {
+            for ($column = 0; $column < $columns; $column++) {
+                if (trim((string) ($matrix[$row][$column] ?? '')) === '') {
+                    return false;
+                }
+            }
+        }
+
+        foreach ($finalFields as $field) {
+            if (trim((string) ($final[$field] ?? '')) === '') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function compareGaussFinalAnswers(array $studentFinal, $acceptedAnswers): bool
+    {
+        if (! is_array($acceptedAnswers) || empty($acceptedAnswers)) {
+            return false;
+        }
+
+        foreach ($acceptedAnswers as $field => $acceptedValues) {
+            $studentValue = $this->parseGaussNumber($studentFinal[$field] ?? null);
+
+            if ($studentValue === null) {
+                return false;
+            }
+
+            $values = is_array($acceptedValues) ? $acceptedValues : [$acceptedValues];
+            $matches = false;
+
+            foreach ($values as $acceptedValue) {
+                $numericAccepted = $this->parseGaussNumber($acceptedValue);
+
+                if ($numericAccepted !== null && abs($studentValue - $numericAccepted) < 0.000001) {
+                    $matches = true;
+                    break;
+                }
+            }
+
+            if (! $matches) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function isValidGaussEchelonMatrix(array $studentMatrix, $initialMatrix): bool
+    {
+        if (! is_array($initialMatrix) || empty($initialMatrix)) {
+            return false;
+        }
+
+        $student = $this->toNumericMatrix($studentMatrix, $initialMatrix);
+        $initial = $this->toNumericMatrix($initialMatrix, $initialMatrix);
+
+        if ($student === null || $initial === null) {
+            return false;
+        }
+
+        return $this->isRowEchelonForm($student)
+            && $this->matricesAreClose(
+                $this->reducedRowEchelonForm($student),
+                $this->reducedRowEchelonForm($initial)
+            );
+    }
+
+    private function toNumericMatrix($matrix, array $referenceMatrix): ?array
+    {
+        if (! is_array($matrix) || count($matrix) !== count($referenceMatrix)) {
+            return null;
+        }
+
+        $numericMatrix = [];
+
+        foreach ($referenceMatrix as $rowIndex => $referenceRow) {
+            if (! is_array($referenceRow) || ! isset($matrix[$rowIndex]) || ! is_array($matrix[$rowIndex])) {
+                return null;
+            }
+
+            if (count($matrix[$rowIndex]) !== count($referenceRow)) {
+                return null;
+            }
+
+            $numericRow = [];
+
+            foreach ($referenceRow as $columnIndex => $unusedValue) {
+                $number = $this->parseGaussNumber($matrix[$rowIndex][$columnIndex] ?? null);
+
+                if ($number === null) {
+                    return null;
+                }
+
+                $numericRow[] = $number;
+            }
+
+            $numericMatrix[] = $numericRow;
+        }
+
+        return $numericMatrix;
+    }
+
+    private function parseGaussNumber($value): ?float
+    {
+        $value = trim((string) $value);
+        $value = str_replace(['−', '–', '—'], '-', $value);
+        $value = str_ireplace('per', '/', $value);
+        $value = str_replace(',', '.', $value);
+        $value = preg_replace('/\s+/', '', $value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        if (preg_match('/^([+-]?(?:\d+(?:\.\d*)?|\.\d+))\/([+-]?(?:\d+(?:\.\d*)?|\.\d+))$/', $value, $matches)) {
+            $denominator = (float) $matches[2];
+
+            if (abs($denominator) < 0.000000001) {
+                return null;
+            }
+
+            return (float) $matches[1] / $denominator;
+        }
+
+        return is_numeric($value) ? (float) $value : null;
+    }
+
+    private function isRowEchelonForm(array $matrix): bool
+    {
+        $epsilon = 0.000001;
+        $lastLeadingColumn = -1;
+        $encounteredZeroRow = false;
+        $rowCount = count($matrix);
+
+        foreach ($matrix as $rowIndex => $row) {
+            $leadingColumn = -1;
+
+            foreach ($row as $columnIndex => $value) {
+                if (abs($value) >= $epsilon) {
+                    $leadingColumn = $columnIndex;
+                    break;
+                }
+            }
+
+            if ($leadingColumn === -1) {
+                $encounteredZeroRow = true;
+                continue;
+            }
+
+            if ($encounteredZeroRow || $leadingColumn <= $lastLeadingColumn) {
+                return false;
+            }
+
+            for ($below = $rowIndex + 1; $below < $rowCount; $below++) {
+                if (abs($matrix[$below][$leadingColumn] ?? 0) >= $epsilon) {
+                    return false;
+                }
+            }
+
+            $lastLeadingColumn = $leadingColumn;
+        }
+
+        return true;
+    }
+
+    private function reducedRowEchelonForm(array $matrix): array
+    {
+        $epsilon = 0.000001;
+        $rowCount = count($matrix);
+        $columnCount = count($matrix[0] ?? []);
+        $pivotRow = 0;
+
+        for ($column = 0; $column < $columnCount && $pivotRow < $rowCount; $column++) {
+            $bestRow = $pivotRow;
+
+            for ($row = $pivotRow + 1; $row < $rowCount; $row++) {
+                if (abs($matrix[$row][$column]) > abs($matrix[$bestRow][$column])) {
+                    $bestRow = $row;
+                }
+            }
+
+            if (abs($matrix[$bestRow][$column]) < $epsilon) {
+                continue;
+            }
+
+            if ($bestRow !== $pivotRow) {
+                [$matrix[$bestRow], $matrix[$pivotRow]] = [$matrix[$pivotRow], $matrix[$bestRow]];
+            }
+
+            $pivot = $matrix[$pivotRow][$column];
+
+            for ($index = 0; $index < $columnCount; $index++) {
+                $matrix[$pivotRow][$index] /= $pivot;
+            }
+
+            for ($row = 0; $row < $rowCount; $row++) {
+                if ($row === $pivotRow) {
+                    continue;
+                }
+
+                $factor = $matrix[$row][$column];
+
+                if (abs($factor) < $epsilon) {
+                    continue;
+                }
+
+                for ($index = 0; $index < $columnCount; $index++) {
+                    $matrix[$row][$index] -= $factor * $matrix[$pivotRow][$index];
+                }
+            }
+
+            $pivotRow++;
+        }
+
+        foreach ($matrix as $rowIndex => $row) {
+            foreach ($row as $columnIndex => $value) {
+                if (abs($value) < $epsilon) {
+                    $matrix[$rowIndex][$columnIndex] = 0.0;
+                }
+            }
+        }
+
+        return $matrix;
+    }
+
+    private function matricesAreClose(array $left, array $right): bool
+    {
+        if (count($left) !== count($right)) {
+            return false;
+        }
+
+        foreach ($left as $rowIndex => $row) {
+            if (count($row) !== count($right[$rowIndex] ?? [])) {
+                return false;
+            }
+
+            foreach ($row as $columnIndex => $value) {
+                if (abs($value - $right[$rowIndex][$columnIndex]) >= 0.000001) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
     private function normalizeScalar($value): string
     {
         $value = trim((string) $value);
