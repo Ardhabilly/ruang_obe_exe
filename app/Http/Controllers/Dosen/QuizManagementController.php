@@ -23,6 +23,7 @@ class QuizManagementController extends Controller
         'augmented_matrix',
         'obe_matrix_operation',
         'gauss_elimination',
+        'gauss_jordan',
         'checkbox',
     ];
 
@@ -321,6 +322,20 @@ class QuizManagementController extends Controller
             'gauss_final_definitions.*' => ['nullable', 'array'],
             'gauss_final_definitions.*.label' => ['nullable', 'string', 'max:60'],
             'gauss_final_definitions.*.answer' => ['nullable', 'string', 'max:100'],
+            'gj_rows' => ['nullable', 'integer', 'min:1', 'max:6'],
+            'gj_columns' => ['nullable', 'integer', 'min:1', 'max:8'],
+            'gj_has_separator' => ['nullable', 'boolean'],
+            'gj_separator_before_column' => ['nullable', 'integer', 'min:2', 'max:8'],
+            'gj_initial_matrix' => ['nullable', 'array'],
+            'gj_initial_matrix.*' => ['nullable', 'array'],
+            'gj_initial_matrix.*.*' => ['nullable', 'string', 'max:100'],
+            'gj_rref_matrix' => ['nullable', 'array'],
+            'gj_rref_matrix.*' => ['nullable', 'array'],
+            'gj_rref_matrix.*.*' => ['nullable', 'string', 'max:100'],
+            'gj_final_definitions' => ['nullable', 'array', 'min:1', 'max:8'],
+            'gj_final_definitions.*' => ['nullable', 'array'],
+            'gj_final_definitions.*.label' => ['nullable', 'string', 'max:60'],
+            'gj_final_definitions.*.answer' => ['nullable', 'string', 'max:100'],
             'explanation' => ['nullable', 'string', 'max:2000'],
             'points' => ['required', 'integer', 'min:1', 'max:100'],
             'is_required' => ['nullable', 'boolean'],
@@ -335,6 +350,123 @@ class QuizManagementController extends Controller
             $questionData['equations'] = $equations;
         }
 
+        if ($questionType === 'gauss_jordan') {
+            $rows = (int) ($validated['gj_rows'] ?? 0);
+            $columns = (int) ($validated['gj_columns'] ?? 0);
+
+            if ($rows < 1 || $rows > 6 || $columns < 1 || $columns > 8) {
+                throw ValidationException::withMessages([
+                    'gj_rows' => 'Ukuran matriks Gauss-Jordan harus terdiri dari 1–6 baris dan 1–8 kolom.',
+                ]);
+            }
+
+            $hasSeparator = $request->boolean('gj_has_separator');
+
+            if ($hasSeparator && $columns < 2) {
+                throw ValidationException::withMessages([
+                    'gj_columns' => 'Matriks dengan garis pemisah memerlukan minimal dua kolom.',
+                ]);
+            }
+
+            $separatorBeforeColumn = $hasSeparator
+                ? (int) ($validated['gj_separator_before_column'] ?? $columns)
+                : null;
+
+            if ($hasSeparator
+                && ($separatorBeforeColumn < 2 || $separatorBeforeColumn > $columns)) {
+                throw ValidationException::withMessages([
+                    'gj_separator_before_column' => 'Kolom awal ruas kanan harus berada pada rentang 2 sampai jumlah kolom matriks.',
+                ]);
+            }
+
+            $initialMatrix = $this->buildRequiredMatrix(
+                (array) ($validated['gj_initial_matrix'] ?? []),
+                $rows,
+                $columns,
+                'gj_initial_matrix',
+                'matriks awal'
+            );
+
+            $rrefMatrix = $this->buildRequiredMatrix(
+                (array) ($validated['gj_rref_matrix'] ?? []),
+                $rows,
+                $columns,
+                'gj_rref_matrix',
+                'target bentuk eselon baris tereduksi'
+            );
+
+            $definitions = $validated['gj_final_definitions'] ?? [];
+
+            if (! is_array($definitions) || empty($definitions)) {
+                throw ValidationException::withMessages([
+                    'gj_final_definitions' => 'Masukkan minimal satu nilai akhir variabel.',
+                ]);
+            }
+
+            $finalFields = [];
+            $finalLabels = [];
+            $acceptedAnswers = [];
+            $usedLabels = [];
+
+            foreach (array_values($definitions) as $index => $definition) {
+                $label = $this->normalizeVariableLabel($definition['label'] ?? null);
+                $answer = $this->nullableText($definition['answer'] ?? null);
+                $position = $index + 1;
+
+                if ($label === null) {
+                    throw ValidationException::withMessages([
+                        'gj_final_definitions.' . $index . '.label' => 'Masukkan nama variabel ke-' . $position . '.',
+                    ]);
+                }
+
+                $fingerprint = $this->variableLabelFingerprint($label);
+
+                if (isset($usedLabels[$fingerprint])) {
+                    throw ValidationException::withMessages([
+                        'gj_final_definitions.' . $index . '.label' => 'Nama variabel akhir tidak boleh sama.',
+                    ]);
+                }
+
+                if ($answer === null) {
+                    throw ValidationException::withMessages([
+                        'gj_final_definitions.' . $index . '.answer' => 'Masukkan nilai akhir untuk ' . $label . '.',
+                    ]);
+                }
+
+                $key = 'j' . $position;
+
+                $usedLabels[$fingerprint] = true;
+                $finalFields[] = $key;
+                $finalLabels[$key] = $label;
+                $acceptedAnswers[$key] = [$answer];
+            }
+
+            $gaussJordanData = $questionData;
+            $gaussJordanData['rows'] = $rows;
+            $gaussJordanData['columns'] = $columns;
+            $gaussJordanData['has_separator'] = $hasSeparator;
+            $gaussJordanData['initial_matrix'] = $initialMatrix;
+            $gaussJordanData['final_fields'] = $finalFields;
+            $gaussJordanData['final_labels'] = $finalLabels;
+
+            if ($hasSeparator) {
+                $gaussJordanData['separator_before_column'] = $separatorBeforeColumn;
+            }
+
+            return [
+                'question_text' => trim($validated['question_text']),
+                'question_type' => 'gauss_jordan',
+                'question_data' => $gaussJordanData,
+                'answer_key' => [
+                    'initial_matrix' => $initialMatrix,
+                    'rref_matrix' => $rrefMatrix,
+                ],
+                'accepted_answers' => $acceptedAnswers,
+                'explanation' => $this->nullableText($validated['explanation'] ?? null),
+                'points' => (int) $validated['points'],
+                'is_required' => $request->boolean('is_required', true),
+            ];
+        }
         if ($questionType === 'gauss_elimination') {
             $rows = (int) ($validated['gauss_rows'] ?? 0);
             $columns = (int) ($validated['gauss_columns'] ?? 0);

@@ -213,6 +213,82 @@
                 ['label' => 'x', 'answer' => ''],
             ];
         }
+        $gjRows = (int) old('gj_rows', $data['rows'] ?? 3);
+        $gjColumns = (int) old('gj_columns', $data['columns'] ?? 4);
+        $gjHasSeparator = old('gj_has_separator', $data['has_separator'] ?? true);
+        $gjSeparatorBeforeColumn = (int) old(
+            'gj_separator_before_column',
+            $data['separator_before_column'] ?? $gjColumns
+        );
+        $gjInitialMatrix = old(
+            'gj_initial_matrix',
+            $answerKey['initial_matrix'] ?? $data['initial_matrix'] ?? []
+        );
+        $gjRrefMatrix = old('gj_rref_matrix', $answerKey['rref_matrix'] ?? []);
+
+        if ($gjRows < 1 || $gjRows > 6) {
+            $gjRows = 3;
+        }
+
+        if ($gjColumns < 1 || $gjColumns > 8) {
+            $gjColumns = 4;
+        }
+
+        if ($gjSeparatorBeforeColumn < 2 || $gjSeparatorBeforeColumn > $gjColumns) {
+            $gjSeparatorBeforeColumn = $gjColumns;
+        }
+
+        if (! is_array($gjInitialMatrix)) {
+            $gjInitialMatrix = [];
+        }
+
+        if (! is_array($gjRrefMatrix)) {
+            $gjRrefMatrix = [];
+        }
+
+        $gjFinalDefinitions = [];
+        $gjFinalFields = $data['final_fields'] ?? array_keys($acceptedAnswers ?? []);
+        $gjFinalLabels = $data['final_labels'] ?? [];
+
+        if (! is_array($gjFinalFields)) {
+            $gjFinalFields = [];
+        }
+
+        if (! is_array($gjFinalLabels)) {
+            $gjFinalLabels = [];
+        }
+
+        foreach (array_values($gjFinalFields) as $index => $field) {
+            $key = trim((string) $field);
+
+            if ($key === '') {
+                $key = 'j' . ($index + 1);
+            }
+
+            $answer = $acceptedAnswers[$key] ?? '';
+            $answer = is_array($answer) ? ($answer[0] ?? '') : $answer;
+
+            $gjFinalDefinitions[] = [
+                'label' => trim((string) ($gjFinalLabels[$key] ?? $key)),
+                'answer' => $answer,
+            ];
+        }
+
+        if (empty($gjFinalDefinitions)) {
+            $gjFinalDefinitions = [
+                ['label' => 'x', 'answer' => ''],
+                ['label' => 'y', 'answer' => ''],
+                ['label' => 'z', 'answer' => ''],
+            ];
+        }
+
+        $gjFinalDefinitions = old('gj_final_definitions', $gjFinalDefinitions);
+
+        if (! is_array($gjFinalDefinitions) || empty($gjFinalDefinitions)) {
+            $gjFinalDefinitions = [
+                ['label' => 'x', 'answer' => ''],
+            ];
+        }
     @endphp
 
     <div class="px-4 py-8 sm:px-6 lg:px-8">
@@ -243,7 +319,7 @@
                     </h1>
 
                     <p class="mt-2 text-sm leading-6 text-slate-400">
-                        Buat soal isian, notasi matematika, nilai variabel, matriks, operasi baris elementer, Eliminasi Gauss, atau pilihan lebih dari satu jawaban.
+                        Buat soal isian, notasi matematika, nilai variabel, matriks, operasi baris elementer, Eliminasi Gauss, Gauss-Jordan, atau pilihan lebih dari satu jawaban.
                     </p>
                 </div>
             </section>
@@ -255,6 +331,81 @@
                 x-data="{
                     questionType: @js($questionType),
                     maximumVariables: 8,
+                    gjRows: @js($gjRows),
+                    gjColumns: @js($gjColumns),
+                    gjHasSeparator: @js((bool) $gjHasSeparator),
+                    gjSeparatorBeforeColumn: @js($gjSeparatorBeforeColumn),
+                    gjFinalDefinitions: @js(array_values($gjFinalDefinitions)),
+                    gjFinalCount: {{ min(max(count($gjFinalDefinitions), 1), 8) }},
+
+                    ensureGjSettings() {
+                        this.gjRows = Math.min(6, Math.max(1, Number.parseInt(this.gjRows, 10) || 1));
+                        this.gjColumns = Math.min(8, Math.max(1, Number.parseInt(this.gjColumns, 10) || 1));
+
+                        if (this.gjHasSeparator && this.gjColumns < 2) {
+                            this.gjColumns = 2;
+                        }
+
+                        this.gjSeparatorBeforeColumn = Math.min(
+                            this.gjColumns,
+                            Math.max(2, Number.parseInt(this.gjSeparatorBeforeColumn, 10) || this.gjColumns)
+                        );
+                    },
+
+                    nextGjLabel() {
+                        const defaults = ['x', 'y', 'z', 'a', 'b', 'c', 'd', 'e'];
+                        const used = this.gjFinalDefinitions
+                            .map(item => String(item.label || '').trim().toLowerCase());
+
+                        return defaults.find(label => ! used.includes(label.toLowerCase()))
+                            || 'v' + (this.gjFinalDefinitions.length + 1);
+                    },
+
+                    addGjFinal() {
+                        if (this.gjFinalDefinitions.length >= this.maximumVariables) {
+                            return;
+                        }
+
+                        this.gjFinalDefinitions.push({
+                            label: this.nextGjLabel(),
+                            answer: ''
+                        });
+
+                        this.gjFinalCount = this.gjFinalDefinitions.length;
+                    },
+
+                    removeGjFinal(index) {
+                        if (this.gjFinalDefinitions.length <= 1) {
+                            return;
+                        }
+
+                        this.gjFinalDefinitions.splice(index, 1);
+                        this.gjFinalCount = this.gjFinalDefinitions.length;
+                    },
+
+                    synchronizeGjFinalCount() {
+                        let count = Number.parseInt(this.gjFinalCount, 10);
+
+                        if (! Number.isFinite(count)) {
+                            count = this.gjFinalDefinitions.length || 1;
+                        }
+
+                        count = Math.min(this.maximumVariables, Math.max(1, count));
+
+                        while (this.gjFinalDefinitions.length < count) {
+                            this.gjFinalDefinitions.push({
+                                label: this.nextGjLabel(),
+                                answer: ''
+                            });
+                        }
+
+                        while (this.gjFinalDefinitions.length > count) {
+                            this.gjFinalDefinitions.pop();
+                        }
+
+                        this.gjFinalCount = count;
+                    },
+
                     gaussRows: @js($gaussRows),
                     gaussColumns: @js($gaussColumns),
                     gaussHasSeparator: @js((bool) $gaussHasSeparator),
@@ -504,6 +655,12 @@
                         </label>
 
                         <label class="cursor-pointer rounded-2xl border p-4 transition"
+                               :class="questionType === 'gauss_jordan' ? 'border-violet-300/40 bg-violet-400/10' : 'border-white/10 bg-slate-950/35 hover:border-white/20'">
+                            <input type="radio" name="question_type" value="gauss_jordan" x-model="questionType" @change="ensureGjSettings()" class="sr-only">
+                            <span class="block text-sm font-black text-white">Gauss-Jordan</span>
+                            <span class="mt-1 block text-xs leading-5 text-slate-400">Mahasiswa membentuk eselon baris tereduksi dan menentukan nilai akhir.</span>
+                        </label>
+                        <label class="cursor-pointer rounded-2xl border p-4 transition"
                                :class="questionType === 'gauss_elimination' ? 'border-violet-300/40 bg-violet-400/10' : 'border-white/10 bg-slate-950/35 hover:border-white/20'">
                             <input type="radio" name="question_type" value="gauss_elimination" x-model="questionType" @change="ensureGaussSettings()" class="sr-only">
                             <span class="block text-sm font-black text-white">Eliminasi Gauss</span>
@@ -694,6 +851,174 @@
                     @error('matrix_answers')
                         <p class="mt-3 text-sm text-red-300">{{ $message }}</p>
                     @enderror
+                </section>
+                <section data-gauss-jordan-configuration="dynamic" x-show="questionType === 'gauss_jordan'" x-transition>
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                        <div>
+                            <p class="text-sm font-black text-white">
+                                Konfigurasi Gauss-Jordan <span class="text-cyan-200">*</span>
+                            </p>
+
+                            <p class="mt-1 text-xs leading-5 text-slate-500">
+                                Mahasiswa akan membentuk bentuk eselon baris tereduksi dan mengisi nilai akhir setiap variabel.
+                            </p>
+                        </div>
+
+                        <div class="flex gap-3">
+                            <label class="w-24">
+                                <span class="text-xs font-bold uppercase tracking-wide text-slate-400">Baris</span>
+                                <input type="number" name="gj_rows" min="1" max="6"
+                                       x-model.number="gjRows" @change="ensureGjSettings()"
+                                       class="mt-2 h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-center text-sm font-black text-white outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                            </label>
+
+                            <label class="w-24">
+                                <span class="text-xs font-bold uppercase tracking-wide text-slate-400">Kolom</span>
+                                <input type="number" name="gj_columns" min="1" max="8"
+                                       x-model.number="gjColumns" @change="ensureGjSettings()"
+                                       class="mt-2 h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-center text-sm font-black text-white outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-end">
+                        <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-slate-950/35 px-4 py-3">
+                            <input type="hidden" name="gj_has_separator" value="0">
+                            <input type="checkbox"
+                                   name="gj_has_separator"
+                                   value="1"
+                                   x-model="gjHasSeparator"
+                                   @change="ensureGjSettings()"
+                                   class="rounded border-slate-500 bg-slate-900 text-cyan-400 focus:ring-cyan-400">
+                            <span class="text-sm font-bold text-slate-300">Gunakan garis pemisah ruas kanan</span>
+                        </label>
+
+                        <label x-show="gjHasSeparator" x-transition class="block">
+                            <span class="text-xs font-bold uppercase tracking-wide text-slate-400">Kolom Awal Ruas Kanan</span>
+                            <input type="number" name="gj_separator_before_column" min="2"
+                                   :max="gjColumns" x-model.number="gjSeparatorBeforeColumn"
+                                   @change="ensureGjSettings()"
+                                   class="mt-2 h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-center text-sm font-black text-white outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                        </label>
+                    </div>
+
+                    <div class="mt-5 grid gap-4 xl:grid-cols-2">
+                        <div class="overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/35 p-4">
+                            <p class="text-sm font-black text-white">Matriks Awal</p>
+                            <p class="mt-1 text-xs leading-5 text-slate-500">Matriks yang akan diselesaikan menggunakan metode Gauss-Jordan.</p>
+
+                            <div class="mt-4 w-max">
+                                <div class="grid gap-2" :style="'grid-template-columns: repeat(' + gjColumns + ', 62px)'">
+                                    @for ($row = 0; $row < 6; $row++)
+                                        @for ($column = 0; $column < 8; $column++)
+                                            <input type="text"
+                                                   x-show="gjRows > {{ $row }} && gjColumns > {{ $column }}"
+                                                   name="gj_initial_matrix[{{ $row }}][{{ $column }}]"
+                                                   value="{{ $gjInitialMatrix[$row][$column] ?? '' }}"
+                                                   autocomplete="off"
+                                                   placeholder="0"
+                                                   :class="{ 'border-l-4 border-l-violet-300': gjHasSeparator && gjSeparatorBeforeColumn === {{ $column + 1 }} }"
+                                                   class="h-11 rounded-xl border border-white/10 bg-slate-950/60 px-2 text-center font-mono text-sm font-black text-white placeholder:text-slate-600 outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                                        @endfor
+                                    @endfor
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/35 p-4">
+                            <p class="text-sm font-black text-white">Target Bentuk Eselon Baris Tereduksi</p>
+                            <p class="mt-1 text-xs leading-5 text-slate-500">Diisi sebagai jawaban matriks yang akan dinilai pada mahasiswa.</p>
+
+                            <div class="mt-4 w-max">
+                                <div class="grid gap-2" :style="'grid-template-columns: repeat(' + gjColumns + ', 62px)'">
+                                    @for ($row = 0; $row < 6; $row++)
+                                        @for ($column = 0; $column < 8; $column++)
+                                            <input type="text"
+                                                   x-show="gjRows > {{ $row }} && gjColumns > {{ $column }}"
+                                                   name="gj_rref_matrix[{{ $row }}][{{ $column }}]"
+                                                   value="{{ $gjRrefMatrix[$row][$column] ?? '' }}"
+                                                   autocomplete="off"
+                                                   placeholder="0"
+                                                   :class="{ 'border-l-4 border-l-violet-300': gjHasSeparator && gjSeparatorBeforeColumn === {{ $column + 1 }} }"
+                                                   class="h-11 rounded-xl border border-white/10 bg-slate-950/60 px-2 text-center font-mono text-sm font-black text-white placeholder:text-slate-600 outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                                        @endfor
+                                    @endfor
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-5 rounded-2xl border border-white/10 bg-slate-950/35 p-4">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                            <div>
+                                <p class="text-sm font-black text-white">
+                                    Nilai Akhir Variabel <span class="text-cyan-200">*</span>
+                                </p>
+
+                                <p class="mt-1 text-xs leading-5 text-slate-500">
+                                    Atur jumlah, nama, dan jawaban akhir variabel yang harus diisi mahasiswa.
+                                </p>
+                            </div>
+
+                            <label class="w-full sm:w-40">
+                                <span class="text-xs font-bold uppercase tracking-wide text-slate-400">Jumlah variabel</span>
+                                <input type="number" min="1" max="8"
+                                       x-model.number="gjFinalCount"
+                                       @change="synchronizeGjFinalCount()"
+                                       @input.debounce.300ms="synchronizeGjFinalCount()"
+                                       class="mt-2 h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-center text-sm font-black text-white outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                            </label>
+                        </div>
+
+                        <div class="mt-4 space-y-3">
+                            <template x-for="(variable, index) in gjFinalDefinitions" :key="index">
+                                <div class="grid gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 sm:grid-cols-[40px_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+                                    <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-400/10 text-sm font-black text-violet-100" x-text="index + 1"></span>
+
+                                    <label class="block">
+                                        <span class="text-xs font-bold uppercase tracking-wide text-slate-400">Nama Variabel</span>
+                                        <input type="text"
+                                               :name="'gj_final_definitions[' + index + '][label]'"
+                                               x-model="variable.label"
+                                               maxlength="40"
+                                               placeholder="Contoh: x"
+                                               autocomplete="off"
+                                               class="mt-2 h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm font-black text-white placeholder:text-slate-500 outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                                    </label>
+
+                                    <label class="block">
+                                        <span class="text-xs font-bold uppercase tracking-wide text-slate-400">Jawaban Akhir</span>
+                                        <input type="text"
+                                               :name="'gj_final_definitions[' + index + '][answer]'"
+                                               x-model="variable.answer"
+                                               placeholder="Contoh: -1/2"
+                                               autocomplete="off"
+                                               class="mt-2 h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-center font-mono text-sm font-black text-white placeholder:text-slate-500 outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                                    </label>
+
+                                    <button type="button"
+                                            @click="removeGjFinal(index)"
+                                            :disabled="gjFinalDefinitions.length <= 1"
+                                            class="h-10 rounded-xl border border-red-300/20 bg-red-400/10 px-3 text-xs font-black text-red-200 transition hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-40">
+                                        Hapus
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+
+                        <button type="button"
+                                @click="addGjFinal()"
+                                :disabled="gjFinalDefinitions.length >= maximumVariables"
+                                class="mt-4 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3.5 py-2 text-xs font-black text-violet-100 transition hover:bg-violet-400/20 disabled:cursor-not-allowed disabled:opacity-40">
+                            + Tambah Variabel
+                        </button>
+                    </div>
+
+                    @foreach (['gj_rows', 'gj_columns', 'gj_separator_before_column', 'gj_initial_matrix', 'gj_rref_matrix', 'gj_final_definitions'] as $errorField)
+                        @error($errorField)
+                            <p class="mt-3 text-sm text-red-300">{{ $message }}</p>
+                        @enderror
+                    @endforeach
                 </section>
                 <section data-gauss-elimination-configuration="dynamic" x-show="questionType === 'gauss_elimination'" x-transition>
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">

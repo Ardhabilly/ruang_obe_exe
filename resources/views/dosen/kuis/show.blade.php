@@ -143,6 +143,7 @@
                             'augmented_matrix',
                             'obe_matrix_operation',
                             'gauss_elimination',
+                            'gauss_jordan',
                             'checkbox',
                         ], true);
                     @endphp

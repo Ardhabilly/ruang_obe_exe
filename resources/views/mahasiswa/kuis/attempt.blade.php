@@ -839,7 +839,7 @@
                                             $separatorBefore = $hasSeparator
                                                 ? (int) ($data['separator_before_column'] ?? $columns)
                                                 : 0;
-                                            $initialMatrix = $question->question_type === 'gauss_elimination'
+                                            $initialMatrix = in_array($question->question_type, ['gauss_elimination', 'gauss_jordan'], true)
                                                 ? ($question->answer_key['initial_matrix'] ?? $data['initial_matrix'] ?? [])
                                                 : [];
                                             $equations = $data['equations'] ?? [];
