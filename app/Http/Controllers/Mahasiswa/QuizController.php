@@ -519,6 +519,13 @@ class QuizController extends Controller
                 $isCorrect = in_array($answer, $acceptedAnswers, true);
                 break;
 
+            case 'variable_values':
+                $isCorrect = $this->compareVariableValues(
+                    $question,
+                    $payload['answers'] ?? [],
+                    $question->accepted_answers ?? []
+                );
+                break;
             case 'canvas_final_answer':
                 $finalAnswer = $payload['final'] ?? [];
                 $accepted = $question->accepted_answers ?? [];
@@ -642,6 +649,7 @@ class QuizController extends Controller
         return match ($question->question_type) {
             'checkbox' => ! empty($payload['selected']),
             'short_text', 'math_notation' => trim((string) ($payload['answer'] ?? '')) !== '',
+            'variable_values' => $this->hasCompleteVariableResponse($question, $payload),
             'multi_short_text' => $this->hasCompleteMultiTextResponse($question, $payload),            'canvas_final_answer' => $this->hasAnyValue($payload['final'] ?? []),
             'obe_matrix_operation' => trim((string) ($payload['operation'] ?? '')) !== ''
                 && $this->hasAnyValue($payload['result_matrix'] ?? []),
@@ -651,6 +659,78 @@ class QuizController extends Controller
         };
     }
 
+    private function variableFields($question): array
+    {
+        $fields = $question->question_data['fields'] ?? ['x', 'y', 'z'];
+
+        if (! is_array($fields)) {
+            $fields = ['x', 'y', 'z'];
+        }
+
+        $normalized = [];
+
+        foreach ($fields as $field) {
+            $field = strtolower(trim((string) $field));
+
+            if (in_array($field, ['x', 'y', 'z'], true) && ! in_array($field, $normalized, true)) {
+                $normalized[] = $field;
+            }
+        }
+
+        return ! empty($normalized) ? $normalized : ['x', 'y', 'z'];
+    }
+
+    private function hasCompleteVariableResponse($question, array $payload): bool
+    {
+        $answers = $payload['answers'] ?? [];
+
+        if (! is_array($answers)) {
+            return false;
+        }
+
+        foreach ($this->variableFields($question) as $field) {
+            if (trim((string) ($answers[$field] ?? '')) === '') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function compareVariableValues($question, array $studentAnswers, $acceptedAnswers): bool
+    {
+        if (! is_array($acceptedAnswers) || empty($acceptedAnswers)) {
+            return false;
+        }
+
+        foreach ($this->variableFields($question) as $field) {
+            $studentValue = $this->parseGaussNumber($studentAnswers[$field] ?? null);
+
+            if ($studentValue === null) {
+                return false;
+            }
+
+            $expectedValues = $acceptedAnswers[$field] ?? [];
+            $expectedValues = is_array($expectedValues) ? $expectedValues : [$expectedValues];
+
+            $matched = false;
+
+            foreach ($expectedValues as $expectedValue) {
+                $numericExpected = $this->parseGaussNumber($expectedValue);
+
+                if ($numericExpected !== null && abs($studentValue - $numericExpected) < 0.000001) {
+                    $matched = true;
+                    break;
+                }
+            }
+
+            if (! $matched) {
+                return false;
+            }
+        }
+
+        return true;
+    }
     private function hasCompleteMultiTextResponse($question, array $payload): bool
     {
         $answers = $payload['answers'] ?? [];

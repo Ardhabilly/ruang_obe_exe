@@ -119,6 +119,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
             Route::patch('/kuis/{quiz}/status', [DosenQuizManagementController::class, 'toggleStatus'])
                 ->name('kuis.toggle-status');
+
+            Route::get('/kuis/{quiz}/soal/tambah', [DosenQuizManagementController::class, 'createQuestion'])
+                ->name('kuis.soal.create');
+
+            Route::post('/kuis/{quiz}/soal', [DosenQuizManagementController::class, 'storeQuestion'])
+                ->name('kuis.soal.store');
+
+            Route::get('/kuis/{quiz}/soal/{question}/edit', [DosenQuizManagementController::class, 'editQuestion'])
+                ->name('kuis.soal.edit');
+
+            Route::put('/kuis/{quiz}/soal/{question}', [DosenQuizManagementController::class, 'updateQuestion'])
+                ->name('kuis.soal.update');
+
+            Route::delete('/kuis/{quiz}/soal/{question}', [DosenQuizManagementController::class, 'destroyQuestion'])
+                ->name('kuis.soal.destroy');
         });
 });
 

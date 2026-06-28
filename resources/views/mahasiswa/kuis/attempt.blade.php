@@ -197,6 +197,12 @@
                     return Array.from(gaussMatrixInputs).every(input => input.value.trim() !== '')
                         && Array.from(gaussFinalInputs).every(input => input.value.trim() !== '');
                 }
+                const variableValueInputs = card.querySelectorAll('[data-variable-value-input]');
+
+                if (variableValueInputs.length > 0) {
+                    return Array.from(variableValueInputs).every(input => input.value.trim() !== '');
+                }
+
                 const multiTextInputs = card.querySelectorAll('[data-multi-text-input]');
 
                 if (multiTextInputs.length > 0) {
@@ -495,7 +501,44 @@
                                                 class="mt-2 w-full rounded-2xl border-slate-300 bg-white px-4 py-3 text-center text-lg font-bold text-slate-900 shadow-sm focus:border-cyan-500 focus:ring-cyan-500"
                                                 placeholder="Ketik jawaban Anda di sini">
                                         </label>
-                                                                        @elseif ($question->question_type === 'multi_short_text')
+                                                                        @elseif ($question->question_type === 'variable_values')
+                                        @php
+                                            $variableFields = $data['fields'] ?? ['x', 'y', 'z'];
+                                            $variableLabels = $data['labels'] ?? [];
+                                        @endphp
+
+                                        <div class="mx-auto max-w-xl">
+                                            <div class="rounded-2xl border border-slate-300 bg-slate-50 p-5">
+                                                <p class="text-center text-sm font-black text-slate-700">
+                                                    Masukkan nilai setiap variabel
+                                                </p>
+
+                                                <div class="mt-4 grid gap-3 sm:grid-cols-3">
+                                                    @foreach ($variableFields as $field)
+                                                        <label class="block">
+                                                            <span class="mb-2 block text-center text-base font-black text-slate-900">
+                                                                {{ $variableLabels[$field] ?? $field }} =
+                                                            </span>
+
+                                                            <input
+                                                                type="text"
+                                                                name="responses[{{ $question->id }}][answers][{{ $field }}]"
+                                                                value="{{ $savedValue['answers'][$field] ?? '' }}"
+                                                                autocomplete="off"
+                                                                data-variable-value-input
+                                                                placeholder="Nilai {{ $variableLabels[$field] ?? $field }}"
+                                                                class="h-12 w-full rounded-xl border-slate-300 bg-white px-3 text-center text-lg font-black text-slate-900 focus:border-cyan-500 focus:ring-cyan-500">
+                                                        </label>
+                                                    @endforeach
+                                                </div>
+
+                                                <p class="mt-4 text-center text-xs leading-5 text-slate-500">
+                                                    Gunakan nilai bilangan atau bentuk pecahan, misalnya <span class="font-mono">-1/2</span> atau <span class="font-mono">-1 per 2</span>.
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                    @elseif ($question->question_type === 'multi_short_text')
                                         @php
                                             $matrix = $data['matrix'] ?? [];
                                             $rows = (int) ($data['rows'] ?? count($matrix));

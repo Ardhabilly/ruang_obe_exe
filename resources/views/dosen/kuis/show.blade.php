@@ -88,18 +88,33 @@
                 </div>
             </section>
 
+            @if ($hasStartedAttempts)
+                <section class="rounded-2xl border border-yellow-300/20 bg-yellow-400/10 px-5 py-4 text-sm leading-6 text-yellow-100">
+                    Soal dikunci karena sudah terdapat percobaan mahasiswa. Penguncian ini menjaga jawaban, nilai, dan riwayat kuis tetap konsisten.
+                </section>
+            @endif
+
             <section class="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] backdrop-blur-xl">
-                <div class="flex flex-col gap-3 border-b border-white/10 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                <div class="flex flex-col gap-4 border-b border-white/10 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                     <div>
                         <h2 class="text-lg font-black text-white">Daftar Soal</h2>
                         <p class="mt-1 text-sm text-slate-400">
-                            Rangkuman soal yang tersedia pada kuis ini.
+                            Susun isi kuis sebelum kuis diaktifkan dan dikerjakan mahasiswa.
                         </p>
                     </div>
 
-                    <span class="w-fit rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-300">
-                        {{ $quiz->questions->count() }} soal · {{ $totalPoints }} poin
-                    </span>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <span class="w-fit rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-300">
+                            {{ $quiz->questions->count() }} soal · {{ $totalPoints }} poin
+                        </span>
+
+                        @if ($canManageQuestions)
+                            <a href="{{ route('dosen.kuis.soal.create', $quiz) }}"
+                               class="inline-flex items-center justify-center rounded-xl bg-cyan-400 px-3.5 py-2 text-xs font-black text-slate-950 transition hover:bg-cyan-300">
+                                + Tambah Soal
+                            </a>
+                        @endif
+                    </div>
                 </div>
 
                 @forelse ($quiz->questions as $question)
@@ -108,6 +123,7 @@
                             'checkbox' => 'Pilihan lebih dari satu',
                             'short_text' => 'Isian singkat',
                             'math_notation' => 'Notasi matematika',
+                            'variable_values' => 'Nilai variabel',
                             'matrix' => 'Matriks',
                             'augmented_matrix' => 'Matriks teraugmentasi',
                             'matrix_equation' => 'Persamaan matriks',
@@ -118,6 +134,13 @@
                             'multi_short_text' => 'Isian beberapa persamaan',
                             default => ucfirst(str_replace('_', ' ', $question->question_type)),
                         };
+
+                        $isBasicType = in_array($question->question_type, [
+                            'short_text',
+                            'math_notation',
+                            'variable_values',
+                            'checkbox',
+                        ], true);
                     @endphp
 
                     <article class="flex flex-col gap-3 border-b border-white/10 px-5 py-4 last:border-b-0 sm:px-6 md:flex-row md:items-start md:justify-between">
@@ -131,6 +154,12 @@
                                     <span class="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-slate-300">
                                         {{ $typeLabel }}
                                     </span>
+
+                                    @if (! $isBasicType)
+                                        <span class="rounded-full border border-violet-300/15 bg-violet-400/[0.07] px-2.5 py-1 text-[11px] font-bold text-violet-200">
+                                            Tipe lanjutan
+                                        </span>
+                                    @endif
                                 </div>
 
                                 <p class="mt-2 text-sm leading-6 text-slate-200">
@@ -139,16 +168,46 @@
                             </div>
                         </div>
 
-                        <span class="w-fit shrink-0 rounded-lg border border-cyan-300/20 bg-cyan-400/10 px-3 py-1.5 text-xs font-black text-cyan-100">
-                            {{ $question->points }} poin
-                        </span>
+                        <div class="flex shrink-0 flex-wrap items-center gap-2 md:justify-end">
+                            <span class="rounded-lg border border-cyan-300/20 bg-cyan-400/10 px-3 py-1.5 text-xs font-black text-cyan-100">
+                                {{ $question->points }} poin
+                            </span>
+
+                            @if ($canManageQuestions && $isBasicType)
+                                <a href="{{ route('dosen.kuis.soal.edit', [$quiz, $question]) }}"
+                                   class="rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs font-black text-slate-200 transition hover:bg-white/10">
+                                    Ubah
+                                </a>
+                            @endif
+
+                            @if ($canManageQuestions)
+                                <form method="POST"
+                                      action="{{ route('dosen.kuis.soal.destroy', [$quiz, $question]) }}"
+                                      onsubmit="return confirm('Hapus soal nomor {{ $question->order_number }}? Nomor soal setelahnya akan dirapikan.');">
+                                    @csrf
+                                    @method('DELETE')
+
+                                    <button type="submit"
+                                            class="rounded-lg border border-red-300/20 bg-red-400/10 px-3 py-1.5 text-xs font-black text-red-200 transition hover:bg-red-400/20">
+                                        Hapus
+                                    </button>
+                                </form>
+                            @endif
+                        </div>
                     </article>
                 @empty
                     <div class="px-6 py-10 text-center">
                         <p class="text-base font-black text-white">Belum ada soal</p>
                         <p class="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-400">
-                            Kuis masih berupa draf. Tambahkan soal terlebih dahulu sebelum kuis diaktifkan.
+                            Tambahkan soal untuk mulai menyusun kuis ini.
                         </p>
+
+                        @if ($canManageQuestions)
+                            <a href="{{ route('dosen.kuis.soal.create', $quiz) }}"
+                               class="mt-5 inline-flex rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-cyan-300">
+                                + Tambah Soal Pertama
+                            </a>
+                        @endif
                     </div>
                 @endforelse
             </section>
