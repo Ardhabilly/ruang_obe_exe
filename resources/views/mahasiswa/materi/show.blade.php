@@ -462,9 +462,6 @@
                                 {{ $progress->completed ? 'Selesai' : 'Belum selesai' }}
                             </span>
                         </div>
-
-                        {{--
---}}
                     </section>
 
                     <article class="rounded-[1.5rem] border border-white/10 bg-white/[0.96] p-7 text-slate-800 shadow-2xl shadow-slate-950/20">
