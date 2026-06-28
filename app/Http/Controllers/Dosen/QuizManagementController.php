@@ -107,7 +107,7 @@ class QuizManagementController extends Controller
                 ->withErrors(['type' => $message]);
         }
 
-        Quiz::create([
+        $quiz = Quiz::create([
             'class_group_id' => $classGroup->id,
             'course_module_id' => $courseModuleId,
             'title' => $validated['title'],
@@ -121,8 +121,55 @@ class QuizManagementController extends Controller
         ]);
 
         return redirect()
-            ->route('dosen.kuis.index')
+            ->route('dosen.kuis.show', $quiz)
             ->with('success', 'Kuis berhasil dibuat sebagai draf. Tambahkan soal sebelum kuis diaktifkan.');
+    }
+
+    public function show(Quiz $quiz)
+    {
+        $this->ensureQuizOwner($quiz);
+
+        $quiz->load([
+            'classGroup:id,name,kkm',
+            'module:id,title,order_number',
+            'questions',
+        ])->loadCount('attempts');
+
+        $totalPoints = $quiz->questions->sum('points');
+
+        return view('dosen.kuis.show', compact('quiz', 'totalPoints'));
+    }
+
+    public function toggleStatus(Quiz $quiz)
+    {
+        $this->ensureQuizOwner($quiz);
+
+        if (! $quiz->is_active && $quiz->questions()->count() === 0) {
+            return back()->with(
+                'warning',
+                'Kuis belum dapat diaktifkan karena belum memiliki soal.'
+            );
+        }
+
+        $quiz->update([
+            'is_active' => ! $quiz->is_active,
+        ]);
+
+        return back()->with(
+            'success',
+            $quiz->is_active
+                ? 'Kuis berhasil diaktifkan dan dapat diakses mahasiswa sesuai syarat pembelajaran.'
+                : 'Kuis berhasil dinonaktifkan. Mahasiswa tidak dapat memulai percobaan baru.'
+        );
+    }
+
+    private function ensureQuizOwner(Quiz $quiz): void
+    {
+        $isOwner = $quiz->classGroup()
+            ->where('dosen_id', Auth::id())
+            ->exists();
+
+        abort_unless($isOwner, 403, 'Anda tidak memiliki akses ke kuis ini.');
     }
 
     private function makeUniqueSlug(string $title, int $classGroupId): string

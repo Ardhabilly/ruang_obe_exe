@@ -118,9 +118,16 @@
                                     {{ $quiz->attempts_count }} percobaan mahasiswa tercatat
                                 </p>
 
-                                <span class="text-xs font-semibold {{ $quiz->questions_count > 0 ? 'text-cyan-200' : 'text-yellow-200' }}">
-                                    {{ $quiz->questions_count > 0 ? 'Soal telah tersedia' : 'Belum ada soal' }}
-                                </span>
+                                <div class="flex items-center gap-3">
+                                    <span class="text-xs font-semibold {{ $quiz->questions_count > 0 ? 'text-cyan-200' : 'text-yellow-200' }}">
+                                        {{ $quiz->questions_count > 0 ? 'Soal telah tersedia' : 'Belum ada soal' }}
+                                    </span>
+
+                                    <a href="{{ route('dosen.kuis.show', $quiz) }}"
+                                       class="rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-400/20">
+                                        Kelola Kuis →
+                                    </a>
+                                </div>
                             </div>
                         </article>
                     @empty

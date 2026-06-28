@@ -110,6 +110,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
             Route::post('/kuis', [DosenQuizManagementController::class, 'store'])
                 ->name('kuis.store');
+
+            Route::get('/kuis/{quiz}', [DosenQuizManagementController::class, 'show'])
+                ->name('kuis.show');
+
+            Route::patch('/kuis/{quiz}/status', [DosenQuizManagementController::class, 'toggleStatus'])
+                ->name('kuis.toggle-status');
         });
 });
 
