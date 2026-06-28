@@ -588,6 +588,26 @@ class QuizController extends Controller
 
                 $isCorrect = $matrixCorrect && $finalCorrect;
                 break;
+            case 'multi_short_text':
+                $answers = $payload['answers'] ?? [];
+                $acceptedAnswers = $question->accepted_answers ?? [];
+                $isCorrect = is_array($answers) && is_array($acceptedAnswers) && ! empty($acceptedAnswers);
+
+                if ($isCorrect) {
+                    foreach ($acceptedAnswers as $field => $acceptedValues) {
+                        $studentAnswer = $this->normalizeText($answers[$field] ?? '');
+                        $values = is_array($acceptedValues) ? $acceptedValues : [$acceptedValues];
+                        $normalizedAccepted = collect($values)
+                            ->map(fn ($item) => $this->normalizeText($item))
+                            ->all();
+
+                        if (! in_array($studentAnswer, $normalizedAccepted, true)) {
+                            $isCorrect = false;
+                            break;
+                        }
+                    }
+                }
+                break;
             case 'matrix':
             case 'augmented_matrix':
                 $isCorrect = $this->compareMatrix(
@@ -622,7 +642,7 @@ class QuizController extends Controller
         return match ($question->question_type) {
             'checkbox' => ! empty($payload['selected']),
             'short_text', 'math_notation' => trim((string) ($payload['answer'] ?? '')) !== '',
-            'canvas_final_answer' => $this->hasAnyValue($payload['final'] ?? []),
+            'multi_short_text' => $this->hasCompleteMultiTextResponse($question, $payload),            'canvas_final_answer' => $this->hasAnyValue($payload['final'] ?? []),
             'obe_matrix_operation' => trim((string) ($payload['operation'] ?? '')) !== ''
                 && $this->hasAnyValue($payload['result_matrix'] ?? []),
             'gauss_elimination', 'gauss_jordan' => $this->hasCompleteGaussResponse($question, $payload),            'matrix', 'augmented_matrix' => $this->hasAnyValue($payload['matrix'] ?? []),
@@ -631,6 +651,23 @@ class QuizController extends Controller
         };
     }
 
+    private function hasCompleteMultiTextResponse($question, array $payload): bool
+    {
+        $answers = $payload['answers'] ?? [];
+        $fields = $question->question_data['fields'] ?? array_keys($question->accepted_answers ?? []);
+
+        if (! is_array($answers) || ! is_array($fields) || empty($fields)) {
+            return false;
+        }
+
+        foreach ($fields as $field) {
+            if (trim((string) ($answers[$field] ?? '')) === '') {
+                return false;
+            }
+        }
+
+        return true;
+    }
     private function hasAnyValue($value): bool
     {
         if (is_array($value)) {

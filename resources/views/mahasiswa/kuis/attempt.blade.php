@@ -197,6 +197,11 @@
                     return Array.from(gaussMatrixInputs).every(input => input.value.trim() !== '')
                         && Array.from(gaussFinalInputs).every(input => input.value.trim() !== '');
                 }
+                const multiTextInputs = card.querySelectorAll('[data-multi-text-input]');
+
+                if (multiTextInputs.length > 0) {
+                    return Array.from(multiTextInputs).every(input => input.value.trim() !== '');
+                }
                 const finalInputs = card.querySelectorAll('[data-final-answer-input]');
 
                 if (finalInputs.length > 0) {
@@ -347,7 +352,9 @@
                                 $savedDoubtful = (bool) ($savedResponse?->is_marked_doubtful ?? false);
 
                                 $displayText = $question->question_text;
-                                $equationsTex = [];
+                                $equationsTex = in_array($question->question_type, ['gauss_elimination', 'gauss_jordan'])
+                                    ? []
+                                    : ($data['equations'] ?? []);
                                 $matrixRowTex = null;
                                 $extraNote = null;
 
@@ -488,7 +495,62 @@
                                                 class="mt-2 w-full rounded-2xl border-slate-300 bg-white px-4 py-3 text-center text-lg font-bold text-slate-900 shadow-sm focus:border-cyan-500 focus:ring-cyan-500"
                                                 placeholder="Ketik jawaban Anda di sini">
                                         </label>
-                                    @elseif ($question->question_type === 'obe_matrix_operation')
+                                                                        @elseif ($question->question_type === 'multi_short_text')
+                                        @php
+                                            $matrix = $data['matrix'] ?? [];
+                                            $rows = (int) ($data['rows'] ?? count($matrix));
+                                            $columns = (int) ($data['columns'] ?? count($matrix[0] ?? []));
+                                            $separatorBefore = (int) ($data['separator_before_column'] ?? $columns);
+                                            $fields = $data['fields'] ?? [];
+                                            $labels = $data['labels'] ?? [];
+                                        @endphp
+
+                                        <div class="mx-auto max-w-3xl space-y-4">
+                                            @if (!empty($matrix))
+                                                <div class="overflow-x-auto pb-1">
+                                                    <div class="mx-auto w-max rounded-2xl border border-slate-300 bg-slate-50 p-4">
+                                                        <p class="mb-3 text-center text-sm font-black text-slate-700">
+                                                            Matriks teraugmentasi
+                                                        </p>
+
+                                                        <div class="grid gap-2" style="grid-template-columns: repeat({{ $columns }}, 64px);">
+                                                            @for ($r = 0; $r < $rows; $r++)
+                                                                @for ($c = 0; $c < $columns; $c++)
+                                                                    <div class="flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-center font-black text-slate-900 {{ ($c + 1) === $separatorBefore ? 'border-l-4 border-l-slate-700' : '' }}">
+                                                                        {{ $matrix[$r][$c] ?? '' }}
+                                                                    </div>
+                                                                @endfor
+                                                            @endfor
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            @endif
+
+                                            <div class="rounded-2xl border border-slate-300 bg-slate-50 p-4">
+                                                <p class="text-sm font-black text-slate-700">
+                                                    Tuliskan bentuk persamaan setiap baris
+                                                </p>
+
+                                                <div class="mt-3 grid gap-3">
+                                                    @foreach ($fields as $field)
+                                                        <label class="grid gap-2 sm:grid-cols-[190px_minmax(0,1fr)] sm:items-center">
+                                                            <span class="text-sm font-black text-slate-900">
+                                                                {{ $labels[$field] ?? $field }}
+                                                            </span>
+
+                                                            <input
+                                                                type="text"
+                                                                name="responses[{{ $question->id }}][answers][{{ $field }}]"
+                                                                value="{{ $savedValue['answers'][$field] ?? '' }}"
+                                                                autocomplete="off"
+                                                                data-multi-text-input
+                                                                placeholder="Ketik persamaan"
+                                                                class="h-11 min-w-0 w-full rounded-xl border-slate-300 bg-white px-4 text-center font-bold text-slate-900 focus:border-cyan-500 focus:ring-cyan-500">
+                                                        </label>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                        </div>@elseif ($question->question_type === 'obe_matrix_operation')
                                         @php
                                             $rows = (int) ($data['rows'] ?? count($data['initial_matrix'] ?? []));
                                             $columns = (int) ($data['columns'] ?? count(($data['initial_matrix'][0] ?? [])));
@@ -1092,15 +1154,15 @@
                     </div>
                 </section>
 
-                <aside class="order-1 flex min-h-0 flex-col rounded-[1.35rem] border border-white/10 bg-white/[0.06] p-3 backdrop-blur-xl lg:order-2 lg:h-full lg:p-4">
+                <aside class="order-1 flex min-h-0 flex-col rounded-[1.35rem] border border-white/10 bg-white/[0.06] p-3 backdrop-blur-xl lg:order-2 lg:h-full lg:overflow-hidden lg:p-4">
                     <div class="shrink-0">
-                        <div class="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-center lg:px-5 lg:py-4">
+                        <div class="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-center lg:px-4 lg:py-3">
                             <p class="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">
                                 Sisa Waktu
                             </p>
 
                             <p
-                                class="mt-1 font-mono text-2xl font-black leading-none text-white lg:text-3xl"
+                                class="mt-1 font-mono text-2xl font-black leading-none text-white lg:text-2xl"
                                 x-text="timerText()">
                             </p>
 
@@ -1136,7 +1198,7 @@
                         </div>
                     </div>
 
-                    <div class="mt-3 grid grid-cols-10 gap-1.5 sm:gap-2 lg:mt-4 lg:grid-cols-5">
+                    <div class="mt-3 grid grid-cols-10 gap-1.5 sm:gap-2 lg:mt-3 lg:grid-cols-5">
                         @foreach ($questions as $index => $question)
                             <button
                                 type="button"
@@ -1148,7 +1210,7 @@
                         @endforeach
                     </div>
 
-                    <div class="mt-3 grid grid-cols-2 gap-2 lg:mt-4 lg:gap-3">
+                    <div class="mt-3 grid grid-cols-2 gap-2 lg:mt-3 lg:gap-2">
                         <div class="rounded-2xl border border-white/10 bg-slate-950/40 p-3">
                             <p class="text-xs text-slate-400">
                                 Terjawab
@@ -1171,26 +1233,29 @@
                         </div>
                     </div>
 
-                    <div class="mt-4 hidden rounded-2xl border border-white/10 bg-slate-950/40 p-3 text-xs leading-6 text-slate-300 lg:block">
-                        <p><span class="font-black text-cyan-300">Biru</span> = sedang dibuka</p>
-                        <p><span class="font-black text-green-300">Hijau</span> = sudah dijawab</p>
-                        <p><span class="font-black text-yellow-300">Kuning</span> = ragu-ragu</p>
-                        <p><span class="font-black text-slate-300">Abu-abu</span> = belum dijawab</p>
+                    <div class="mt-3 hidden rounded-2xl border border-white/10 bg-slate-950/40 p-3 text-[11px] leading-5 text-slate-300 lg:block">
+                        <p class="font-black text-slate-200">Status warna:</p>
+                        <p class="mt-1">
+                            <span class="font-black text-cyan-300">Biru</span> aktif ·
+                            <span class="font-black text-green-300">Hijau</span> dijawab ·
+                            <span class="font-black text-yellow-300">Kuning</span> ragu ·
+                            <span class="font-black text-slate-300">Abu-abu</span> belum
+                        </p>
                     </div>
 
-                    <div class="mt-3 lg:mt-auto lg:pt-4">
+                    <div class="mt-3 shrink-0 border-t border-white/10 pt-3 lg:mt-auto">
                         <button
                             type="button"
                             @click="requestSubmit()"
                             :aria-disabled="!allAnswered()"
-                            class="w-full rounded-2xl px-5 py-2.5 text-sm font-black shadow-lg transition lg:py-3"
+                            class="min-h-11 w-full rounded-2xl px-5 py-2.5 text-sm font-black shadow-lg transition"
                             :class="allAnswered()
                                 ? 'bg-green-400 text-slate-950 shadow-green-500/20 hover:bg-green-300'
                                 : 'bg-slate-700 text-slate-300 shadow-slate-950/20 hover:bg-slate-600'">
                             Kumpulkan Kuis
                         </button>
 
-                        <p x-show="!allAnswered()" x-cloak class="mt-2 text-xs leading-5 text-yellow-200 lg:mt-3">
+                        <p x-show="!allAnswered()" x-cloak class="mt-2 text-xs leading-5 text-yellow-200">
                             Lengkapi semua soal terlebih dahulu untuk mengumpulkan kuis.
                         </p>
                     </div>

@@ -262,6 +262,57 @@
                         @endforeach
                     </div>
 
+                    @if ($finalEvaluations->isNotEmpty())
+                        <div
+                            class="mt-5 rounded-2xl border border-violet-300/20 bg-violet-400/10 p-3"
+                            x-bind:class="{ 'lg:hidden': sidebarCollapsed }">
+                            <p class="px-1 text-[10px] font-black uppercase tracking-[0.18em] text-violet-200">
+                                Tahap Akhir
+                            </p>
+
+                            <div class="mt-2 space-y-2">
+                                @foreach ($finalEvaluations as $finalEvaluation)
+                                    @if ($finalEvaluation->is_unlocked)
+                                        <a
+                                            href="{{ route('mahasiswa.kuis.instruction', $finalEvaluation) }}"
+                                            class="group flex items-start gap-3 rounded-2xl border border-violet-300/20 bg-violet-400/10 px-3 py-3 text-violet-100 transition hover:bg-violet-400/20">
+
+                                            <span class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-violet-400/20 text-[9px] font-black text-violet-100">
+                                                EVAL
+                                            </span>
+
+                                            <span class="min-w-0 flex-1">
+                                                <span class="block text-sm font-black leading-5">
+                                                    {{ $finalEvaluation->title }}
+                                                </span>
+
+                                                <span class="mt-1 block text-xs leading-5 text-violet-100/70">
+                                                    {{ $finalEvaluation->questions_count }} soal · {{ $finalEvaluation->duration_minutes }} menit · KKM {{ $finalEvaluation->classGroup->kkm }}
+                                                </span>
+                                            </span>
+                                        </a>
+                                    @else
+                                        <div class="flex cursor-not-allowed items-start gap-3 rounded-2xl border border-yellow-300/10 bg-yellow-400/5 px-3 py-3 text-yellow-100/70">
+                                            <span class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-yellow-400/10 text-[9px] font-black">
+                                                EVAL
+                                            </span>
+
+                                            <span class="min-w-0 flex-1">
+                                                <span class="block text-sm font-black leading-5">
+                                                    {{ $finalEvaluation->title }}
+                                                </span>
+
+                                                <span class="mt-1 block text-xs leading-5 text-yellow-100/60">
+                                                    {{ $finalEvaluation->locked_reason }}
+                                                </span>
+                                            </span>
+                                        </div>
+                                    @endif
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+
                     {{-- Navigasi ringkas: hanya tampil saat sidebar diminimalkan di desktop --}}
                     <div
                         x-cloak
@@ -353,6 +404,32 @@
                             </div>
                         @endforeach
                     </div>
+
+                    @if ($finalEvaluations->isNotEmpty())
+                        <div
+                            x-cloak
+                            x-show="sidebarCollapsed"
+                            class="mt-3 hidden rounded-2xl border border-violet-300/20 bg-violet-400/10 p-2 lg:block">
+                            @foreach ($finalEvaluations as $finalEvaluation)
+                                @if ($finalEvaluation->is_unlocked)
+                                    <a
+                                        href="{{ route('mahasiswa.kuis.instruction', $finalEvaluation) }}"
+                                        title="{{ $finalEvaluation->title }}"
+                                        aria-label="{{ $finalEvaluation->title }}"
+                                        class="flex h-11 w-full items-center justify-center rounded-xl border border-violet-300/20 bg-violet-400/10 text-[9px] font-black text-violet-100 transition hover:bg-violet-400/20">
+                                        EVAL
+                                    </a>
+                                @else
+                                    <span
+                                        title="{{ $finalEvaluation->title }} — {{ $finalEvaluation->locked_reason }}"
+                                        aria-label="{{ $finalEvaluation->title }} masih terkunci"
+                                        class="flex h-11 w-full cursor-not-allowed items-center justify-center rounded-xl border border-yellow-300/10 bg-yellow-400/5 text-[9px] font-black text-yellow-100/60">
+                                        🔒
+                                    </span>
+                                @endif
+                            @endforeach
+                        </div>
+                    @endif
                 </aside>
 
                 <main class="min-w-0 flex-1 space-y-6">

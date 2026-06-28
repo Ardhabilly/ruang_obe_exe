@@ -141,6 +141,22 @@ class CourseController extends Controller
             })
             ->groupBy('course_module_id');
 
+        $finalEvaluations = Quiz::with(['classGroup'])
+            ->withCount('questions')
+            ->whereIn('class_group_id', $joinedClassIds)
+            ->where('type', 'evaluasi_akhir')
+            ->where('is_active', true)
+            ->orderBy('id')
+            ->get()
+            ->map(function ($quiz) use ($user) {
+                $quiz->is_unlocked = $this->isQuizUnlocked($quiz, $user->id);
+                $quiz->locked_reason = $quiz->is_unlocked
+                    ? null
+                    : 'Selesaikan seluruh materi Bab 1 sampai Bab 4 terlebih dahulu.';
+
+                return $quiz;
+            });
+
         return view('mahasiswa.materi.show', compact(
             'lesson',
             'course',
@@ -153,7 +169,8 @@ class CourseController extends Controller
             'practiceSubmissions',
             'requiredPractices',
             'completedPracticeKeys',
-            'quizzesByModule'
+            'quizzesByModule',
+            'finalEvaluations'
         ));
     }
 
