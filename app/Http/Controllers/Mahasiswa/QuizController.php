@@ -661,23 +661,55 @@ class QuizController extends Controller
 
     private function variableFields($question): array
     {
-        $fields = $question->question_data['fields'] ?? ['x', 'y', 'z'];
+        $rawFields = $question->question_data['fields'] ?? ['x', 'y', 'z'];
+        $legacyLabels = $question->question_data['labels'] ?? [];
 
-        if (! is_array($fields)) {
-            $fields = ['x', 'y', 'z'];
+        if (! is_array($rawFields)) {
+            $rawFields = ['x', 'y', 'z'];
+        }
+
+        if (! is_array($legacyLabels)) {
+            $legacyLabels = [];
         }
 
         $normalized = [];
+        $usedKeys = [];
 
-        foreach ($fields as $field) {
-            $field = strtolower(trim((string) $field));
-
-            if (in_array($field, ['x', 'y', 'z'], true) && ! in_array($field, $normalized, true)) {
-                $normalized[] = $field;
+        foreach (array_values($rawFields) as $index => $field) {
+            if (is_array($field)) {
+                $key = trim((string) ($field['key'] ?? ''));
+                $label = trim((string) ($field['label'] ?? $key));
+            } else {
+                $key = trim((string) $field);
+                $label = trim((string) ($legacyLabels[$key] ?? $key));
             }
+
+            if ($key === '' || ! preg_match('/^[A-Za-z][A-Za-z0-9_-]{0,49}$/', $key)) {
+                $key = 'v' . ($index + 1);
+            }
+
+            if ($label === '') {
+                $label = $key;
+            }
+
+            if (isset($usedKeys[$key])) {
+                continue;
+            }
+
+            $usedKeys[$key] = true;
+            $normalized[] = [
+                'key' => $key,
+                'label' => $label,
+            ];
         }
 
-        return ! empty($normalized) ? $normalized : ['x', 'y', 'z'];
+        return ! empty($normalized)
+            ? $normalized
+            : [
+                ['key' => 'x', 'label' => 'x'],
+                ['key' => 'y', 'label' => 'y'],
+                ['key' => 'z', 'label' => 'z'],
+            ];
     }
 
     private function hasCompleteVariableResponse($question, array $payload): bool
@@ -689,7 +721,7 @@ class QuizController extends Controller
         }
 
         foreach ($this->variableFields($question) as $field) {
-            if (trim((string) ($answers[$field] ?? '')) === '') {
+            if (trim((string) ($answers[$field['key']] ?? '')) === '') {
                 return false;
             }
         }
@@ -704,13 +736,14 @@ class QuizController extends Controller
         }
 
         foreach ($this->variableFields($question) as $field) {
-            $studentValue = $this->parseGaussNumber($studentAnswers[$field] ?? null);
+            $key = $field['key'];
+            $studentValue = $this->parseGaussNumber($studentAnswers[$key] ?? null);
 
             if ($studentValue === null) {
                 return false;
             }
 
-            $expectedValues = $acceptedAnswers[$field] ?? [];
+            $expectedValues = $acceptedAnswers[$key] ?? [];
             $expectedValues = is_array($expectedValues) ? $expectedValues : [$expectedValues];
 
             $matched = false;

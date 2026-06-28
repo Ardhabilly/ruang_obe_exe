@@ -503,30 +503,76 @@
                                         </label>
                                                                         @elseif ($question->question_type === 'variable_values')
                                         @php
-                                            $variableFields = $data['fields'] ?? ['x', 'y', 'z'];
-                                            $variableLabels = $data['labels'] ?? [];
+                                            $rawVariableFields = $data['fields'] ?? ['x', 'y', 'z'];
+                                            $legacyVariableLabels = $data['labels'] ?? [];
+                                            $variableFields = [];
+                                            $usedVariableKeys = [];
+
+                                            if (! is_array($rawVariableFields)) {
+                                                $rawVariableFields = ['x', 'y', 'z'];
+                                            }
+
+                                            if (! is_array($legacyVariableLabels)) {
+                                                $legacyVariableLabels = [];
+                                            }
+
+                                            foreach (array_values($rawVariableFields) as $fieldIndex => $field) {
+                                                if (is_array($field)) {
+                                                    $fieldKey = trim((string) ($field['key'] ?? ''));
+                                                    $fieldLabel = trim((string) ($field['label'] ?? $fieldKey));
+                                                } else {
+                                                    $fieldKey = trim((string) $field);
+                                                    $fieldLabel = trim((string) ($legacyVariableLabels[$fieldKey] ?? $fieldKey));
+                                                }
+
+                                                if ($fieldKey === '') {
+                                                    $fieldKey = 'v' . ($fieldIndex + 1);
+                                                }
+
+                                                if ($fieldLabel === '') {
+                                                    $fieldLabel = $fieldKey;
+                                                }
+
+                                                if (isset($usedVariableKeys[$fieldKey])) {
+                                                    continue;
+                                                }
+
+                                                $usedVariableKeys[$fieldKey] = true;
+                                                $variableFields[] = [
+                                                    'key' => $fieldKey,
+                                                    'label' => $fieldLabel,
+                                                ];
+                                            }
+
+                                            if (empty($variableFields)) {
+                                                $variableFields = [
+                                                    ['key' => 'x', 'label' => 'x'],
+                                                    ['key' => 'y', 'label' => 'y'],
+                                                    ['key' => 'z', 'label' => 'z'],
+                                                ];
+                                            }
                                         @endphp
 
-                                        <div class="mx-auto max-w-xl">
+                                        <div class="mx-auto max-w-3xl">
                                             <div class="rounded-2xl border border-slate-300 bg-slate-50 p-5">
                                                 <p class="text-center text-sm font-black text-slate-700">
                                                     Masukkan nilai setiap variabel
                                                 </p>
 
-                                                <div class="mt-4 grid gap-3 sm:grid-cols-3">
+                                                <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                                                     @foreach ($variableFields as $field)
                                                         <label class="block">
-                                                            <span class="mb-2 block text-center text-base font-black text-slate-900">
-                                                                {{ $variableLabels[$field] ?? $field }} =
+                                                            <span class="mb-2 block truncate text-center text-base font-black text-slate-900" title="{{ $field['label'] }}">
+                                                                {{ $field['label'] }} =
                                                             </span>
 
                                                             <input
                                                                 type="text"
-                                                                name="responses[{{ $question->id }}][answers][{{ $field }}]"
-                                                                value="{{ $savedValue['answers'][$field] ?? '' }}"
+                                                                name="responses[{{ $question->id }}][answers][{{ $field['key'] }}]"
+                                                                value="{{ $savedValue['answers'][$field['key']] ?? '' }}"
                                                                 autocomplete="off"
                                                                 data-variable-value-input
-                                                                placeholder="Nilai {{ $variableLabels[$field] ?? $field }}"
+                                                                placeholder="Nilai {{ $field['label'] }}"
                                                                 class="h-12 w-full rounded-xl border-slate-300 bg-white px-3 text-center text-lg font-black text-slate-900 focus:border-cyan-500 focus:ring-cyan-500">
                                                         </label>
                                                     @endforeach
@@ -537,7 +583,6 @@
                                                 </p>
                                             </div>
                                         </div>
-
                                     @elseif ($question->question_type === 'multi_short_text')
                                         @php
                                             $matrix = $data['matrix'] ?? [];

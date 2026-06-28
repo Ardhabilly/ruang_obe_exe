@@ -280,12 +280,10 @@ class QuizManagementController extends Controller
             'checkbox_options.*' => ['nullable', 'string', 'max:500'],
             'checkbox_correct' => ['nullable', 'array'],
             'checkbox_correct.*' => ['nullable', 'string', 'max:10'],
-            'variable_fields' => ['nullable', 'array', 'min:1', 'max:3'],
-            'variable_fields.*' => ['nullable', Rule::in(['x', 'y', 'z'])],
-            'variable_answers' => ['nullable', 'array'],
-            'variable_answers.x' => ['nullable', 'string', 'max:100'],
-            'variable_answers.y' => ['nullable', 'string', 'max:100'],
-            'variable_answers.z' => ['nullable', 'string', 'max:100'],
+            'variable_definitions' => ['nullable', 'array', 'min:1', 'max:8'],
+            'variable_definitions.*' => ['nullable', 'array'],
+            'variable_definitions.*.label' => ['nullable', 'string', 'max:60'],
+            'variable_definitions.*.answer' => ['nullable', 'string', 'max:100'],
             'explanation' => ['nullable', 'string', 'max:2000'],
             'points' => ['required', 'integer', 'min:1', 'max:100'],
             'is_required' => ['nullable', 'boolean'],
@@ -301,47 +299,62 @@ class QuizManagementController extends Controller
         }
 
         if ($questionType === 'variable_values') {
-            $allowedFields = ['x', 'y', 'z'];
-            $fields = [];
+            $definitions = $validated['variable_definitions'] ?? [];
 
-            foreach (($validated['variable_fields'] ?? []) as $field) {
-                $field = strtolower(trim((string) $field));
-
-                if (in_array($field, $allowedFields, true) && ! in_array($field, $fields, true)) {
-                    $fields[] = $field;
-                }
-            }
-
-            if (empty($fields)) {
+            if (! is_array($definitions) || empty($definitions)) {
                 throw ValidationException::withMessages([
-                    'variable_fields' => 'Pilih minimal satu variabel yang harus dijawab.',
+                    'variable_definitions' => 'Masukkan minimal satu variabel yang harus dijawab.',
                 ]);
             }
 
-            $studentAnswerKeys = $validated['variable_answers'] ?? [];
+            $fields = [];
             $acceptedAnswers = [];
             $answerKey = [];
+            $usedLabels = [];
 
-            foreach ($fields as $field) {
-                $value = $this->nullableText($studentAnswerKeys[$field] ?? null);
+            foreach (array_values($definitions) as $index => $definition) {
+                $label = $this->normalizeVariableLabel($definition['label'] ?? null);
+                $answer = $this->nullableText($definition['answer'] ?? null);
+                $position = $index + 1;
 
-                if ($value === null) {
+                if ($label === null) {
                     throw ValidationException::withMessages([
-                        'variable_answers.' . $field => 'Masukkan nilai ' . $field . ' yang diterima.',
+                        'variable_definitions.' . $index . '.label' => 'Masukkan nama variabel ke-' . $position . '.',
                     ]);
                 }
 
-                $answerKey[$field] = $value;
-                $acceptedAnswers[$field] = [$value];
-            }
+                $labelFingerprint = $this->variableLabelFingerprint($label);
 
-            $questionData['fields'] = $fields;
-            $questionData['labels'] = array_combine($fields, $fields) ?: [];
+                if (isset($usedLabels[$labelFingerprint])) {
+                    throw ValidationException::withMessages([
+                        'variable_definitions.' . $index . '.label' => 'Nama variabel tidak boleh sama.',
+                    ]);
+                }
+
+                if ($answer === null) {
+                    throw ValidationException::withMessages([
+                        'variable_definitions.' . $index . '.answer' => 'Masukkan jawaban yang diterima untuk ' . $label . '.',
+                    ]);
+                }
+
+                $key = 'v' . $position;
+
+                $usedLabels[$labelFingerprint] = true;
+                $fields[] = [
+                    'key' => $key,
+                    'label' => $label,
+                ];
+                $answerKey[$key] = $answer;
+                $acceptedAnswers[$key] = [$answer];
+            }
 
             return [
                 'question_text' => trim($validated['question_text']),
                 'question_type' => 'variable_values',
-                'question_data' => $questionData,
+                'question_data' => array_filter([
+                    'equations' => $questionData['equations'] ?? null,
+                    'fields' => $fields,
+                ]),
                 'answer_key' => $answerKey,
                 'accepted_answers' => $acceptedAnswers,
                 'explanation' => $this->nullableText($validated['explanation'] ?? null),
@@ -406,6 +419,29 @@ class QuizManagementController extends Controller
             'points' => (int) $validated['points'],
             'is_required' => $request->boolean('is_required', true),
         ];
+    }
+
+    private function normalizeVariableLabel($value): ?string
+    {
+        $label = trim((string) $value);
+        $label = preg_replace('/\s+/u', ' ', $label) ?? '';
+
+        if ($label === '') {
+            return null;
+        }
+
+        $length = function_exists('mb_strlen')
+            ? mb_strlen($label)
+            : strlen($label);
+
+        return $length <= 40 ? $label : null;
+    }
+
+    private function variableLabelFingerprint(string $label): string
+    {
+        return function_exists('mb_strtolower')
+            ? mb_strtolower($label)
+            : strtolower($label);
     }
 
     private function splitLines(?string $value): array

@@ -20,23 +20,56 @@
         $checkboxOptions = old('checkbox_options', array_merge($defaultOptions, $data['options'] ?? []));
         $checkboxCorrect = old('checkbox_correct', $answerKey['selected'] ?? []);
 
-        $savedVariableFields = $data['fields'] ?? ['x', 'y', 'z'];
+        $rawVariableFields = $data['fields'] ?? ['x', 'y', 'z'];
+        $legacyVariableLabels = $data['labels'] ?? [];
+        $variableDefinitions = [];
 
-        if (! is_array($savedVariableFields) || empty($savedVariableFields)) {
-            $savedVariableFields = ['x', 'y', 'z'];
+        if (! is_array($rawVariableFields)) {
+            $rawVariableFields = ['x', 'y', 'z'];
         }
 
-        $selectedVariableFields = old('variable_fields', $savedVariableFields);
-
-        if (! is_array($selectedVariableFields)) {
-            $selectedVariableFields = ['x', 'y', 'z'];
+        if (! is_array($legacyVariableLabels)) {
+            $legacyVariableLabels = [];
         }
 
-        $variableAnswers = old('variable_answers', [
-            'x' => $answerKey['x'] ?? '',
-            'y' => $answerKey['y'] ?? '',
-            'z' => $answerKey['z'] ?? '',
-        ]);
+        foreach (array_values($rawVariableFields) as $index => $field) {
+            if (is_array($field)) {
+                $key = trim((string) ($field['key'] ?? 'v' . ($index + 1)));
+                $label = trim((string) ($field['label'] ?? $key));
+            } else {
+                $key = trim((string) $field);
+                $label = trim((string) ($legacyVariableLabels[$key] ?? $key));
+            }
+
+            if ($key === '') {
+                $key = 'v' . ($index + 1);
+            }
+
+            if ($label === '') {
+                $label = $key;
+            }
+
+            $variableDefinitions[] = [
+                'label' => $label,
+                'answer' => $answerKey[$key] ?? '',
+            ];
+        }
+
+        if (empty($variableDefinitions)) {
+            $variableDefinitions = [
+                ['label' => 'x', 'answer' => ''],
+                ['label' => 'y', 'answer' => ''],
+                ['label' => 'z', 'answer' => ''],
+            ];
+        }
+
+        $variableDefinitions = old('variable_definitions', $variableDefinitions);
+
+        if (! is_array($variableDefinitions) || empty($variableDefinitions)) {
+            $variableDefinitions = [
+                ['label' => 'x', 'answer' => ''],
+            ];
+        }
     @endphp
 
     <div class="px-4 py-8 sm:px-6 lg:px-8">
@@ -78,9 +111,62 @@
                 action="{{ $isEditing ? route('dosen.kuis.soal.update', [$quiz, $question]) : route('dosen.kuis.soal.store', $quiz) }}"
                 x-data="{
                     questionType: @js($questionType),
-                    selectedVariables: @js(array_values($selectedVariableFields)),
-                    hasVariable(field) {
-                        return this.selectedVariables.includes(field);
+                    maximumVariables: 8,
+                    variableDefinitions: @js(array_values($variableDefinitions)),
+                    variableCount: {{ min(max(count($variableDefinitions), 1), 8) }},
+                    defaultLabels: ['x', 'y', 'z', 'a', 'b', 'c', 'd', 'e'],
+
+                    nextLabel() {
+                        const used = this.variableDefinitions
+                            .map(item => String(item.label || '').trim().toLowerCase());
+
+                        return this.defaultLabels.find(label => !used.includes(label.toLowerCase()))
+                            || 'v' + (this.variableDefinitions.length + 1);
+                    },
+
+                    addVariable() {
+                        if (this.variableDefinitions.length >= this.maximumVariables) {
+                            return;
+                        }
+
+                        this.variableDefinitions.push({
+                            label: this.nextLabel(),
+                            answer: ''
+                        });
+
+                        this.variableCount = this.variableDefinitions.length;
+                    },
+
+                    removeVariable(index) {
+                        if (this.variableDefinitions.length <= 1) {
+                            return;
+                        }
+
+                        this.variableDefinitions.splice(index, 1);
+                        this.variableCount = this.variableDefinitions.length;
+                    },
+
+                    synchronizeVariableCount() {
+                        let count = Number.parseInt(this.variableCount, 10);
+
+                        if (!Number.isFinite(count)) {
+                            count = this.variableDefinitions.length || 1;
+                        }
+
+                        count = Math.min(this.maximumVariables, Math.max(1, count));
+
+                        while (this.variableDefinitions.length < count) {
+                            this.variableDefinitions.push({
+                                label: this.nextLabel(),
+                                answer: ''
+                            });
+                        }
+
+                        while (this.variableDefinitions.length > count) {
+                            this.variableDefinitions.pop();
+                        }
+
+                        this.variableCount = count;
                     }
                 }"
                 class="space-y-6 rounded-2xl border border-white/10 bg-white/[0.06] p-6 backdrop-blur-xl">
@@ -115,7 +201,7 @@
                                :class="questionType === 'variable_values' ? 'border-cyan-300/40 bg-cyan-400/10' : 'border-white/10 bg-slate-950/35 hover:border-white/20'">
                             <input type="radio" name="question_type" value="variable_values" x-model="questionType" class="sr-only">
                             <span class="block text-sm font-black text-white">Nilai Variabel</span>
-                            <span class="mt-1 block text-xs leading-5 text-slate-400">Pilih x, y, dan/atau z sesuai kebutuhan soal.</span>
+                            <span class="mt-1 block text-xs leading-5 text-slate-400">Tentukan jumlah serta nama variabel sesuai kebutuhan soal.</span>
                         </label>
 
                         <label class="cursor-pointer rounded-2xl border p-4 transition"
@@ -207,57 +293,92 @@
                 </section>
 
                 <section x-show="questionType === 'variable_values'" x-transition>
-                    <p class="text-sm font-black text-white">
-                        Variabel dan Jawaban yang Diterima <span class="text-cyan-200">*</span>
-                    </p>
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                        <div>
+                            <p class="text-sm font-black text-white">
+                                Variabel dan Jawaban yang Diterima <span class="text-cyan-200">*</span>
+                            </p>
 
-                    <p class="mt-1 text-xs leading-5 text-slate-500">
-                        Pilih hanya variabel yang diminta pada soal. Mahasiswa hanya akan melihat kolom untuk variabel tersebut.
-                    </p>
+                            <p class="mt-1 text-xs leading-5 text-slate-500">
+                                Tentukan jumlah variabel, nama setiap variabel, dan nilai jawabannya. Mahasiswa hanya melihat variabel yang Anda buat.
+                            </p>
+                        </div>
 
-                    <div class="mt-4 grid gap-3 sm:grid-cols-3">
-                        @foreach (['x', 'y', 'z'] as $field)
-                            <label class="flex cursor-pointer items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-black transition"
-                                   :class="hasVariable('{{ $field }}') ? 'border-cyan-300/40 bg-cyan-400/10 text-cyan-100' : 'border-white/10 bg-slate-950/35 text-slate-300 hover:border-white/20'">
-                                <input type="checkbox"
-                                       name="variable_fields[]"
-                                       value="{{ $field }}"
-                                       x-model="selectedVariables"
-                                       class="sr-only">
-
-                                Tentukan {{ $field }}
+                        <div class="w-full sm:w-40">
+                            <label for="variable_count" class="text-xs font-bold uppercase tracking-wide text-slate-400">
+                                Jumlah variabel
                             </label>
-                        @endforeach
+
+                            <input id="variable_count"
+                                   type="number"
+                                   min="1"
+                                   max="8"
+                                   x-model.number="variableCount"
+                                   @change="synchronizeVariableCount()"
+                                   @input.debounce.300ms="synchronizeVariableCount()"
+                                   class="mt-2 h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-center text-sm font-black text-white outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                        </div>
                     </div>
 
-                    @error('variable_fields')
-                        <p class="mt-2 text-sm text-red-300">{{ $message }}</p>
+                    @error('variable_definitions')
+                        <p class="mt-3 text-sm text-red-300">{{ $message }}</p>
                     @enderror
 
-                    <div class="mt-4 grid gap-3 sm:grid-cols-3">
-                        @foreach (['x', 'y', 'z'] as $field)
-                            <label x-show="hasVariable('{{ $field }}')" x-transition class="block">
-                                <span class="text-sm font-black text-white">{{ $field }} =</span>
+                    <div class="mt-4 space-y-3">
+                        <template x-for="(variable, index) in variableDefinitions" :key="index">
+                            <div class="grid gap-3 rounded-2xl border border-white/10 bg-slate-950/35 p-4 sm:grid-cols-[46px_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+                                <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-400/10 text-sm font-black text-cyan-100" x-text="index + 1"></span>
 
-                                <input type="text"
-                                       name="variable_answers[{{ $field }}]"
-                                       value="{{ $variableAnswers[$field] ?? '' }}"
-                                       placeholder="Nilai {{ $field }}"
-                                       autocomplete="off"
-                                       class="mt-2 h-11 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-center font-mono text-sm font-black text-white placeholder:text-slate-500 outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                                <label class="block">
+                                    <span class="text-xs font-bold uppercase tracking-wide text-slate-400">Nama Variabel</span>
 
-                                @error('variable_answers.' . $field)
-                                    <p class="mt-2 text-sm text-red-300">{{ $message }}</p>
-                                @enderror
-                            </label>
-                        @endforeach
+                                    <input type="text"
+                                           :name="'variable_definitions[' + index + '][label]'"
+                                           x-model="variable.label"
+                                           maxlength="40"
+                                           placeholder="Contoh: x atau harga"
+                                           autocomplete="off"
+                                           class="mt-2 h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm font-black text-white placeholder:text-slate-500 outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                                </label>
+
+                                <label class="block">
+                                    <span class="text-xs font-bold uppercase tracking-wide text-slate-400">Jawaban Diterima</span>
+
+                                    <input type="text"
+                                           :name="'variable_definitions[' + index + '][answer]'"
+                                           x-model="variable.answer"
+                                           placeholder="Contoh: -1/2"
+                                           autocomplete="off"
+                                           class="mt-2 h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-center font-mono text-sm font-black text-white placeholder:text-slate-500 outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                                </label>
+
+                                <button type="button"
+                                        @click="removeVariable(index)"
+                                        :disabled="variableDefinitions.length <= 1"
+                                        class="h-10 rounded-xl border border-red-300/20 bg-red-400/10 px-3 text-xs font-black text-red-200 transition hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-40">
+                                    Hapus
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="mt-4 flex flex-wrap items-center gap-3">
+                        <button type="button"
+                                @click="addVariable()"
+                                :disabled="variableDefinitions.length >= maximumVariables"
+                                class="rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3.5 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-40">
+                            + Tambah Variabel
+                        </button>
+
+                        <p class="text-xs text-slate-500">
+                            Maksimal 8 variabel. Nama dapat berupa <span class="font-mono">x_1</span>, <span class="font-mono">a</span>, <span class="font-mono">harga</span>, atau nama lain yang mudah dibaca.
+                        </p>
                     </div>
 
                     <p class="mt-4 text-xs leading-5 text-slate-500">
                         Sistem menerima nilai bilangan atau pecahan, misalnya <span class="font-mono">-1/2</span> atau <span class="font-mono">-1 per 2</span>.
                     </p>
                 </section>
-
                 <section x-show="questionType === 'checkbox'" x-transition>
                     <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                         <div>
