@@ -312,6 +312,12 @@ class CourseController extends Controller
             'contoh-simulasi-1-4-augmented',
             'cek-pemahaman-1-4-terjemahan-matriks',
             'aktivitas-1-4-matriks',
+            'contoh-simulasi-2-2-pertukaran',
+            'contoh-simulasi-2-2-perkalian-a',
+            'contoh-simulasi-2-2-perkalian-b',
+            'contoh-simulasi-2-2-penjumlahan-a',
+            'contoh-simulasi-2-2-penjumlahan-b',
+            'aktivitas-2-1-obe',
         ];
 
         if (! in_array($submission->practice_key, $componentAttemptPracticeKeys, true)) {
@@ -351,6 +357,15 @@ class CourseController extends Controller
                 'aktivitas-1-4-matriks' => 'Aktivitas 1.4 Pemodelan Matriks pada Kasus Komputasi Dunia Nyata',
             ],
 
+
+            'jenis-jenis-operasi-baris-elementer' => [
+                'contoh-simulasi-2-2-pertukaran' => 'Contoh Simulasi Pertukaran Dua Baris',
+                'contoh-simulasi-2-2-perkalian-a' => 'Contoh Simulasi Perkalian Baris',
+                'contoh-simulasi-2-2-perkalian-b' => 'Contoh Simulasi Perkalian Baris dengan Pecahan',
+                'contoh-simulasi-2-2-penjumlahan-a' => 'Contoh Simulasi Penjumlahan Kelipatan Baris',
+                'contoh-simulasi-2-2-penjumlahan-b' => 'Contoh Simulasi Penjumlahan Kelipatan dengan Pecahan',
+                'aktivitas-2-1-obe' => 'Aktivitas 2.1 - Latihan Mandiri Operasi Baris Elementer',
+            ],
             default => [],
         };
     }

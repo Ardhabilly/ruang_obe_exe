@@ -463,17 +463,8 @@
                             </span>
                         </div>
 
-                        @if ($lesson->learning_outcome)
-                            <div class="mt-6 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-5">
-                                <p class="text-sm font-semibold text-cyan-200">
-                                    Capaian Subbab
-                                </p>
-
-                                <p class="mt-2 text-sm leading-6 text-slate-300">
-                                    {{ $lesson->learning_outcome }}
-                                </p>
-                            </div>
-                        @endif
+                        {{--
+--}}
                     </section>
 
                     <article class="rounded-[1.5rem] border border-white/10 bg-white/[0.96] p-7 text-slate-800 shadow-2xl shadow-slate-950/20">

@@ -31,28 +31,24 @@ class CourseSeeder extends Seeder
                     [
                         'title' => '1.1 Pengertian Sistem Persamaan Linear',
                         'slug' => 'pengertian-sistem-persamaan-linear',
-                        'learning_outcome' => 'Mahasiswa mampu menjelaskan pengertian persamaan linear dan Sistem Persamaan Linear.',
                         'estimated_minutes' => 15,
                         'order_number' => 1,
                     ],
                     [
                         'title' => '1.2 Bentuk Umum Sistem Persamaan Linear',
                         'slug' => 'bentuk-umum-sistem-persamaan-linear',
-                        'learning_outcome' => 'Mahasiswa mampu mengidentifikasi bentuk umum Sistem Persamaan Linear.',
                         'estimated_minutes' => 15,
                         'order_number' => 2,
                     ],
                     [
                         'title' => '1.3 Kemungkinan Solusi Sistem Persamaan Linear',
                         'slug' => 'kemungkinan-solusi-sistem-persamaan-linear',
-                        'learning_outcome' => 'Mahasiswa mampu membedakan sistem dengan solusi tunggal, banyak solusi, dan tidak memiliki solusi.',
                         'estimated_minutes' => 15,
                         'order_number' => 3,
                     ],
                     [
                         'title' => '1.4 Metode Penyelesaian SPL menuju Representasi Matriks',
                         'slug' => 'metode-penyelesaian-spl-menuju-representasi-matriks',
-                        'learning_outcome' => 'Mahasiswa mampu merepresentasikan SPL ke dalam bentuk matriks.',
                         'estimated_minutes' => 20,
                         'order_number' => 4,
                     ],
@@ -67,14 +63,12 @@ class CourseSeeder extends Seeder
                     [
                         'title' => '2.1 Pengertian Operasi Baris Elementer',
                         'slug' => 'pengertian-operasi-baris-elementer',
-                        'learning_outcome' => 'Mahasiswa mampu menjelaskan konsep Operasi Baris Elementer.',
                         'estimated_minutes' => 15,
                         'order_number' => 1,
                     ],
                     [
                         'title' => '2.2 Jenis-Jenis Operasi Baris Elementer',
                         'slug' => 'jenis-jenis-operasi-baris-elementer',
-                        'learning_outcome' => 'Mahasiswa mampu membedakan jenis-jenis Operasi Baris Elementer.',
                         'estimated_minutes' => 20,
                         'order_number' => 2,
                     ],
@@ -89,21 +83,18 @@ class CourseSeeder extends Seeder
                     [
                         'title' => '3.1 Algoritma Matriks Eselon Baris',
                         'slug' => 'algoritma-syarat-matriks-eselon-baris',
-                        'learning_outcome' => 'Mahasiswa mampu menjelaskan syarat matriks eselon baris.',
                         'estimated_minutes' => 20,
                         'order_number' => 1,
                     ],
                     [
                         'title' => '3.2 Simulasi Mengubah Matriks menjadi Eselon Baris',
                         'slug' => 'simulasi-mengubah-matriks-menjadi-eselon-baris',
-                        'learning_outcome' => 'Mahasiswa mampu mengikuti proses perubahan matriks menjadi eselon baris.',
                         'estimated_minutes' => 25,
                         'order_number' => 2,
                     ],
                     [
                         'title' => '3.3 Menyelesaikan SPL dengan Metode Eliminasi Gauss',
                         'slug' => 'menyelesaikan-spl-dengan-metode-eliminasi-gauss',
-                        'learning_outcome' => 'Mahasiswa mampu menyelesaikan SPL menggunakan metode Eliminasi Gauss.',
                         'estimated_minutes' => 25,
                         'order_number' => 3,
                     ],
@@ -118,21 +109,18 @@ class CourseSeeder extends Seeder
                     [
                         'title' => '4.1 Algoritma Matriks Eselon Baris Tereduksi',
                         'slug' => 'algoritma-syarat-matriks-eselon-baris-tereduksi',
-                        'learning_outcome' => 'Mahasiswa mampu menjelaskan syarat matriks eselon baris tereduksi.',
                         'estimated_minutes' => 20,
                         'order_number' => 1,
                     ],
                     [
                         'title' => '4.2 Simulasi Mengubah Matriks menjadi Eselon Baris Tereduksi',
                         'slug' => 'simulasi-mengubah-matriks-menjadi-eselon-baris-tereduksi',
-                        'learning_outcome' => 'Mahasiswa mampu mengikuti proses perubahan matriks menjadi eselon baris tereduksi.',
                         'estimated_minutes' => 25,
                         'order_number' => 2,
                     ],
                     [
                         'title' => '4.3 Menyelesaikan SPL dengan Metode Eliminasi Gauss-Jordan',
                         'slug' => 'menyelesaikan-spl-dengan-metode-eliminasi-gauss-jordan',
-                        'learning_outcome' => 'Mahasiswa mampu menyelesaikan SPL menggunakan metode Gauss-Jordan.',
                         'estimated_minutes' => 25,
                         'order_number' => 3,
                     ],
@@ -157,7 +145,6 @@ class CourseSeeder extends Seeder
                     [
                         'course_module_id' => $module->id,
                         'title' => $lessonData['title'],
-                        'learning_outcome' => $lessonData['learning_outcome'],
                         'estimated_minutes' => $lessonData['estimated_minutes'],
                         'order_number' => $lessonData['order_number'],
                     ]

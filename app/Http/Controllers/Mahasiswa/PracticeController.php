@@ -1175,7 +1175,273 @@ class PracticeController extends Controller
                 ],
             ],
 
-            default => null,
+
+            'contoh-simulasi-2-2-pertukaran' => [
+                'title' => 'Contoh Simulasi 2.2.1 - Pertukaran Dua Baris',
+                'type' => 'contoh_simulasi',
+                'max_score' => 0,
+                'groups' => [
+                    'q1' => [
+                        'number' => 1,
+                        'fields' => [
+                            'baris_target',
+                            'baris_pengganti',
+                            'notasi',
+                            'hasil_11', 'hasil_12', 'hasil_13', 'hasil_14',
+                            'hasil_21', 'hasil_22', 'hasil_23', 'hasil_24',
+                            'hasil_31', 'hasil_32', 'hasil_33', 'hasil_34',
+                        ],
+                        'points' => 0,
+                    ],
+                ],
+                'questions' => [
+                    'baris_target' => [
+                        'accepted_answers' => ['1', 'baris 1', 'baris ke-1'],
+                        'display_answer' => '1',
+                        'feedback_correct' => 'Benar. Baris pertama yang diawali 0 menjadi baris yang diturunkan.',
+                        'feedback_wrong' => 'Belum tepat. Elemen pembuka bernilai 0 berada pada Baris-1.',
+                    ],
+                    'baris_pengganti' => [
+                        'accepted_answers' => ['2', 'baris 2', 'baris ke-2'],
+                        'display_answer' => '2',
+                        'feedback_correct' => 'Benar. Baris ke-2 diawali oleh angka 1.',
+                        'feedback_wrong' => 'Belum tepat. Pilih baris di bawah Baris-1 yang memiliki elemen pertama bernilai 1.',
+                    ],
+                    'notasi' => [
+                        'accepted_answers' => ['b1↔b2', 'b1<->b2', 'b1<=>b2', 'b_1↔b_2', 'b_1<->b_2'],
+                        'display_answer' => 'B1 ↔ B2',
+                        'feedback_correct' => 'Benar. Pertukaran dilakukan antara Baris-1 dan Baris-2.',
+                        'feedback_wrong' => 'Belum tepat. Gunakan notasi pertukaran dua baris, bukan operasi perkalian atau penjumlahan.',
+                    ],
+                    'hasil_11' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Perhatikan Baris-2 awal yang berpindah ke Baris-1.'],
+                    'hasil_12' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Perhatikan Baris-2 awal yang berpindah ke Baris-1.'],
+                    'hasil_13' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Perhatikan Baris-2 awal yang berpindah ke Baris-1.'],
+                    'hasil_14' => ['accepted_answers' => ['6'], 'display_answer' => '6', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Perhatikan Baris-2 awal yang berpindah ke Baris-1.'],
+                    'hasil_21' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Perhatikan Baris-1 awal yang berpindah ke Baris-2.'],
+                    'hasil_22' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Perhatikan Baris-1 awal yang berpindah ke Baris-2.'],
+                    'hasil_23' => ['accepted_answers' => ['3'], 'display_answer' => '3', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Perhatikan Baris-1 awal yang berpindah ke Baris-2.'],
+                    'hasil_24' => ['accepted_answers' => ['9'], 'display_answer' => '9', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Perhatikan Baris-1 awal yang berpindah ke Baris-2.'],
+                    'hasil_31' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Baris-3 tidak berubah.'],
+                    'hasil_32' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Baris-3 tidak berubah.'],
+                    'hasil_33' => ['accepted_answers' => ['-1'], 'display_answer' => '-1', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Baris-3 tidak berubah.'],
+                    'hasil_34' => ['accepted_answers' => ['3'], 'display_answer' => '3', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Baris-3 tidak berubah.'],
+                ],
+            ],
+
+            'contoh-simulasi-2-2-perkalian-a' => [
+                'title' => 'Contoh Simulasi 2.2.2 - Perkalian Baris dengan Konstanta Tak Nol',
+                'type' => 'contoh_simulasi',
+                'max_score' => 0,
+                'groups' => [
+                    'q1' => [
+                        'number' => 1,
+                        'fields' => ['baris_target', 'konstanta', 'notasi', 'hasil_21', 'hasil_22', 'hasil_23'],
+                        'points' => 0,
+                    ],
+                ],
+                'questions' => [
+                    'baris_target' => [
+                        'accepted_answers' => ['2', 'baris 2', 'baris ke-2'],
+                        'display_answer' => '2',
+                        'feedback_correct' => 'Benar. Targetnya adalah Baris-2.',
+                        'feedback_wrong' => 'Belum tepat. Elemen pembuka yang ingin diubah berada pada Baris-2 Kolom-2.',
+                    ],
+                    'konstanta' => [
+                        'accepted_answers' => ['1/2', '1 per 2', '0.5'],
+                        'display_answer' => '1/2',
+                        'feedback_correct' => 'Benar. Bilangan 2 dikalikan 1/2 menghasilkan 1.',
+                        'feedback_wrong' => 'Belum tepat. Gunakan kebalikan perkalian dari 2.',
+                    ],
+                    'notasi' => [
+                        'accepted_answers' => ['b2←1/2b2', 'b2<-1/2b2', 'b_2←1/2b_2', 'b_2<-1/2b_2'],
+                        'display_answer' => 'B2 ← 1/2 B2',
+                        'feedback_correct' => 'Benar. Seluruh Baris-2 dikalikan dengan 1/2.',
+                        'feedback_wrong' => 'Belum tepat. Baris target harus tetap Baris-2 dengan pengali 1/2.',
+                    ],
+                    'hasil_21' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '0 dikalikan 1/2 tetap 0.'],
+                    'hasil_22' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '2 dikalikan 1/2 bernilai 1.'],
+                    'hasil_23' => ['accepted_answers' => ['4'], 'display_answer' => '4', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '8 dikalikan 1/2 bernilai 4.'],
+                ],
+            ],
+
+            'contoh-simulasi-2-2-perkalian-b' => [
+                'title' => 'Contoh Simulasi 2.2.3 - Perkalian Baris dengan Pecahan',
+                'type' => 'contoh_simulasi',
+                'max_score' => 0,
+                'groups' => [
+                    'q1' => [
+                        'number' => 1,
+                        'fields' => ['baris_target', 'konstanta', 'notasi', 'hasil_21', 'hasil_22', 'hasil_23'],
+                        'points' => 0,
+                    ],
+                ],
+                'questions' => [
+                    'baris_target' => [
+                        'accepted_answers' => ['2', 'baris 2', 'baris ke-2'],
+                        'display_answer' => '2',
+                        'feedback_correct' => 'Benar. Targetnya adalah Baris-2.',
+                        'feedback_wrong' => 'Belum tepat. Elemen 2/3 berada pada Baris-2 Kolom-2.',
+                    ],
+                    'konstanta' => [
+                        'accepted_answers' => ['3/2', '3 per 2', '1.5'],
+                        'display_answer' => '3/2',
+                        'feedback_correct' => 'Benar. Kebalikan perkalian dari 2/3 adalah 3/2.',
+                        'feedback_wrong' => 'Belum tepat. Gunakan kebalikan perkalian dari 2/3.',
+                    ],
+                    'notasi' => [
+                        'accepted_answers' => ['b2←3/2b2', 'b2<-3/2b2', 'b_2←3/2b_2', 'b_2<-3/2b_2'],
+                        'display_answer' => 'B2 ← 3/2 B2',
+                        'feedback_correct' => 'Benar. Seluruh Baris-2 dikalikan dengan 3/2.',
+                        'feedback_wrong' => 'Belum tepat. Baris target tetap Baris-2 dengan pengali 3/2.',
+                    ],
+                    'hasil_21' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '0 dikalikan 3/2 tetap 0.'],
+                    'hasil_22' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '2/3 dikalikan 3/2 bernilai 1.'],
+                    'hasil_23' => ['accepted_answers' => ['6'], 'display_answer' => '6', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '4 dikalikan 3/2 bernilai 6.'],
+                ],
+            ],
+
+            'contoh-simulasi-2-2-penjumlahan-a' => [
+                'title' => 'Contoh Simulasi 2.2.4 - Penjumlahan Kelipatan Baris',
+                'type' => 'contoh_simulasi',
+                'max_score' => 0,
+                'groups' => [
+                    'q1' => [
+                        'number' => 1,
+                        'fields' => ['baris_target', 'baris_acuan', 'konstanta', 'notasi', 'hasil_31', 'hasil_32', 'hasil_33', 'hasil_34'],
+                        'points' => 0,
+                    ],
+                ],
+                'questions' => [
+                    'baris_target' => ['accepted_answers' => ['3', 'baris 3', 'baris ke-3'], 'display_answer' => '3', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Elemen 2 yang akan dinolkan berada pada Baris-3 Kolom-1.'],
+                    'baris_acuan' => ['accepted_answers' => ['1', 'baris 1', 'baris ke-1'], 'display_answer' => '1', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Gunakan Baris-1 yang memiliki pivot 1 pada kolom pertama.'],
+                    'konstanta' => ['accepted_answers' => ['-2'], 'display_answer' => '-2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Gunakan lawan dari angka target 2, yaitu -2.'],
+                    'notasi' => [
+                        'accepted_answers' => ['b3←-2b1+b3', 'b3<- -2b1+b3', 'b3<- -2b1+b3', 'b_3←-2b_1+b_3', 'b_3<- -2b_1+b_3'],
+                        'display_answer' => 'B3 ← -2B1 + B3',
+                        'feedback_correct' => 'Benar.',
+                        'feedback_wrong' => 'Gunakan Baris-1 sebagai acuan untuk mengenolkan elemen pertama Baris-3.',
+                    ],
+                    'hasil_31' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '-2(1) + 2 bernilai 0.'],
+                    'hasil_32' => ['accepted_answers' => ['-1'], 'display_answer' => '-1', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '-2(1) + 1 bernilai -1.'],
+                    'hasil_33' => ['accepted_answers' => ['-3'], 'display_answer' => '-3', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '-2(1) + (-1) bernilai -3.'],
+                    'hasil_34' => ['accepted_answers' => ['-9'], 'display_answer' => '-9', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '-2(6) + 3 bernilai -9.'],
+                ],
+            ],
+
+            'contoh-simulasi-2-2-penjumlahan-b' => [
+                'title' => 'Contoh Simulasi 2.2.5 - Penjumlahan Kelipatan dengan Pecahan',
+                'type' => 'contoh_simulasi',
+                'max_score' => 0,
+                'groups' => [
+                    'q1' => [
+                        'number' => 1,
+                        'fields' => ['baris_target', 'baris_acuan', 'konstanta', 'notasi', 'hasil_21', 'hasil_22', 'hasil_23', 'hasil_24'],
+                        'points' => 0,
+                    ],
+                ],
+                'questions' => [
+                    'baris_target' => ['accepted_answers' => ['2', 'baris 2', 'baris ke-2'], 'display_answer' => '2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Elemen 1/2 yang akan dinolkan berada pada Baris-2 Kolom-1.'],
+                    'baris_acuan' => ['accepted_answers' => ['1', 'baris 1', 'baris ke-1'], 'display_answer' => '1', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Gunakan Baris-1 sebagai acuan karena memiliki pivot 1 pada kolom pertama.'],
+                    'konstanta' => ['accepted_answers' => ['-1/2', '-1 per 2', '-0.5'], 'display_answer' => '-1/2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Gunakan lawan dari 1/2, yaitu -1/2.'],
+                    'notasi' => [
+                        'accepted_answers' => ['b2←-1/2b1+b2', 'b2<- -1/2b1+b2', 'b_2←-1/2b_1+b_2', 'b_2<- -1/2b_1+b_2'],
+                        'display_answer' => 'B2 ← -1/2 B1 + B2',
+                        'feedback_correct' => 'Benar.',
+                        'feedback_wrong' => 'Gunakan Baris-1 sebagai acuan dan -1/2 sebagai pengali.',
+                    ],
+                    'hasil_21' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '-1/2(1) + 1/2 bernilai 0.'],
+                    'hasil_22' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '-1/2(2) + 3 bernilai 2.'],
+                    'hasil_23' => ['accepted_answers' => ['3/2', '1.5', '3 per 2'], 'display_answer' => '3/2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '-1/2(-1) + 1 bernilai 3/2.'],
+                    'hasil_24' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '-1/2(4) + 4 bernilai 2.'],
+                ],
+            ],
+
+            'aktivitas-2-1-obe' => [
+                'title' => 'Aktivitas 2.1 - Latihan Mandiri Operasi Baris Elementer',
+                'type' => 'aktivitas',
+                'max_score' => 100,
+                'groups' => [
+                    'kasus_1' => [
+                        'number' => 1,
+                        'fields' => [
+                            'k1_i', 'k1_j', 'k1_notasi',
+                            'k1_11', 'k1_12', 'k1_13', 'k1_14',
+                            'k1_21', 'k1_22', 'k1_23', 'k1_24',
+                            'k1_31', 'k1_32', 'k1_33', 'k1_34',
+                        ],
+                        'points' => 20,
+                    ],
+                    'kasus_2a' => [
+                        'number' => 2,
+                        'fields' => ['k2a_i', 'k2a_k', 'k2a_notasi', 'k2a_21', 'k2a_22', 'k2a_23', 'k2a_24'],
+                        'points' => 20,
+                    ],
+                    'kasus_2b' => [
+                        'number' => 3,
+                        'fields' => ['k2b_i', 'k2b_k', 'k2b_notasi', 'k2b_21', 'k2b_22', 'k2b_23', 'k2b_24'],
+                        'points' => 20,
+                    ],
+                    'kasus_3a' => [
+                        'number' => 4,
+                        'fields' => ['k3a_i', 'k3a_j', 'k3a_k', 'k3a_notasi', 'k3a_21', 'k3a_22', 'k3a_23'],
+                        'points' => 20,
+                    ],
+                    'kasus_3b' => [
+                        'number' => 5,
+                        'fields' => ['k3b_i', 'k3b_j', 'k3b_k', 'k3b_notasi', 'k3b_21', 'k3b_22', 'k3b_23'],
+                        'points' => 20,
+                    ],
+                ],
+                'questions' => [
+                    'k1_i' => ['accepted_answers' => ['1', 'baris 1', 'baris ke-1'], 'display_answer' => '1', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Baris yang diawali 0 adalah Baris-1.'],
+                    'k1_j' => ['accepted_answers' => ['3', 'baris 3', 'baris ke-3'], 'display_answer' => '3', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Baris di bawah yang diawali 1 adalah Baris-3.'],
+                    'k1_notasi' => ['accepted_answers' => ['b1↔b3', 'b1<->b3', 'b_1↔b_3', 'b_1<->b_3'], 'display_answer' => 'B1 ↔ B3', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Tukar Baris-1 dengan Baris-3.'],
+                    'k1_11' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Baris-1 baru berasal dari Baris-3 awal.'],
+                    'k1_12' => ['accepted_answers' => ['4'], 'display_answer' => '4', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Baris-1 baru berasal dari Baris-3 awal.'],
+                    'k1_13' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Baris-1 baru berasal dari Baris-3 awal.'],
+                    'k1_14' => ['accepted_answers' => ['7'], 'display_answer' => '7', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Baris-1 baru berasal dari Baris-3 awal.'],
+                    'k1_21' => ['accepted_answers' => ['3'], 'display_answer' => '3', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Baris-2 tidak berubah.'],
+                    'k1_22' => ['accepted_answers' => ['-1'], 'display_answer' => '-1', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Baris-2 tidak berubah.'],
+                    'k1_23' => ['accepted_answers' => ['5'], 'display_answer' => '5', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Baris-2 tidak berubah.'],
+                    'k1_24' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Baris-2 tidak berubah.'],
+                    'k1_31' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Baris-3 baru berasal dari Baris-1 awal.'],
+                    'k1_32' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Baris-3 baru berasal dari Baris-1 awal.'],
+                    'k1_33' => ['accepted_answers' => ['-1'], 'display_answer' => '-1', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Baris-3 baru berasal dari Baris-1 awal.'],
+                    'k1_34' => ['accepted_answers' => ['4'], 'display_answer' => '4', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Baris-3 baru berasal dari Baris-1 awal.'],
+
+                    'k2a_i' => ['accepted_answers' => ['2', 'baris 2', 'baris ke-2'], 'display_answer' => '2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Target berada pada Baris-2.'],
+                    'k2a_k' => ['accepted_answers' => ['-1/3', '-1 per 3', '-0.3333333333'], 'display_answer' => '-1/3', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Kebalikan perkalian dari -3 adalah -1/3.'],
+                    'k2a_notasi' => ['accepted_answers' => ['b2←-1/3b2', 'b2<- -1/3b2', 'b_2←-1/3b_2', 'b_2<- -1/3b_2'], 'display_answer' => 'B2 ← -1/3 B2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Kalikan Baris-2 dengan -1/3.'],
+                    'k2a_21' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '0 dikalikan -1/3 tetap 0.'],
+                    'k2a_22' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '-3 dikalikan -1/3 bernilai 1.'],
+                    'k2a_23' => ['accepted_answers' => ['-2'], 'display_answer' => '-2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '6 dikalikan -1/3 bernilai -2.'],
+                    'k2a_24' => ['accepted_answers' => ['3'], 'display_answer' => '3', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '-9 dikalikan -1/3 bernilai 3.'],
+
+                    'k2b_i' => ['accepted_answers' => ['2', 'baris 2', 'baris ke-2'], 'display_answer' => '2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Target berada pada Baris-2.'],
+                    'k2b_k' => ['accepted_answers' => ['-4/3', '-4 per 3', '-1.3333333333'], 'display_answer' => '-4/3', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Kebalikan perkalian dari -3/4 adalah -4/3.'],
+                    'k2b_notasi' => ['accepted_answers' => ['b2←-4/3b2', 'b2<- -4/3b2', 'b_2←-4/3b_2', 'b_2<- -4/3b_2'], 'display_answer' => 'B2 ← -4/3 B2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Kalikan Baris-2 dengan -4/3.'],
+                    'k2b_21' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '0 dikalikan -4/3 tetap 0.'],
+                    'k2b_22' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '-3/4 dikalikan -4/3 bernilai 1.'],
+                    'k2b_23' => ['accepted_answers' => ['-4'], 'display_answer' => '-4', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '3 dikalikan -4/3 bernilai -4.'],
+                    'k2b_24' => ['accepted_answers' => ['8'], 'display_answer' => '8', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '-6 dikalikan -4/3 bernilai 8.'],
+
+                    'k3a_i' => ['accepted_answers' => ['2', 'baris 2', 'baris ke-2'], 'display_answer' => '2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Elemen 3 yang ingin dinolkan berada pada Baris-2.'],
+                    'k3a_j' => ['accepted_answers' => ['1', 'baris 1', 'baris ke-1'], 'display_answer' => '1', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Gunakan Baris-1 yang memiliki elemen awal 1.'],
+                    'k3a_k' => ['accepted_answers' => ['-3'], 'display_answer' => '-3', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Lawan dari 3 adalah -3.'],
+                    'k3a_notasi' => ['accepted_answers' => ['b2←-3b1+b2', 'b2<- -3b1+b2', 'b_2←-3b_1+b_2', 'b_2<- -3b_1+b_2'], 'display_answer' => 'B2 ← -3B1 + B2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Gunakan -3B1 lalu tambahkan ke B2.'],
+                    'k3a_21' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '-3(1) + 3 bernilai 0.'],
+                    'k3a_22' => ['accepted_answers' => ['-14'], 'display_answer' => '-14', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '-3(4) + (-2) bernilai -14.'],
+                    'k3a_23' => ['accepted_answers' => ['-16'], 'display_answer' => '-16', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '-3(7) + 5 bernilai -16.'],
+
+                    'k3b_i' => ['accepted_answers' => ['2', 'baris 2', 'baris ke-2'], 'display_answer' => '2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Elemen -2/3 yang ingin dinolkan berada pada Baris-2.'],
+                    'k3b_j' => ['accepted_answers' => ['1', 'baris 1', 'baris ke-1'], 'display_answer' => '1', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Gunakan Baris-1 yang memiliki elemen awal 1.'],
+                    'k3b_k' => ['accepted_answers' => ['2/3', '2 per 3', '0.6666666667'], 'display_answer' => '2/3', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Lawan dari -2/3 adalah 2/3.'],
+                    'k3b_notasi' => ['accepted_answers' => ['b2←2/3b1+b2', 'b2<-2/3b1+b2', 'b_2←2/3b_1+b_2', 'b_2<-2/3b_1+b_2'], 'display_answer' => 'B2 ← 2/3 B1 + B2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Gunakan 2/3 B1 lalu tambahkan ke B2.'],
+                    'k3b_21' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '2/3(1) + (-2/3) bernilai 0.'],
+                    'k3b_22' => ['accepted_answers' => ['9'], 'display_answer' => '9', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '2/3(6) + 5 bernilai 9.'],
+                    'k3b_23' => ['accepted_answers' => ['2'], 'display_answer' => '2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '2/3(-3) + 4 bernilai 2.'],
+                ],
+            ],            default => null,
         };
     }
 

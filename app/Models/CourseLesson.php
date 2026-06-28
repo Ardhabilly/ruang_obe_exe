@@ -10,7 +10,6 @@ class CourseLesson extends Model
         'course_module_id',
         'title',
         'slug',
-        'learning_outcome',
         'estimated_minutes',
         'order_number',
     ];

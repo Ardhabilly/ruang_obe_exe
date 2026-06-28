@@ -79,11 +79,7 @@
                                                 <h3 class="font-bold text-white group-hover:text-cyan-200">
                                                     {{ $lesson->title }}
                                                 </h3>
-
-                                                <p class="mt-2 text-sm leading-6 text-slate-400">
-                                                    {{ $lesson->learning_outcome }}
-                                                </p>
-                                            </div>
+</div>
 
                                             <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-black
                                                 {{ $isCompleted ? 'bg-green-400/10 text-green-200' : 'bg-white/5 text-slate-400' }}">
