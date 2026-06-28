@@ -18,18 +18,15 @@ class QuizManagementController extends Controller
         return redirect()->route('dosen.kelas.index');
     }
 
-    public function create()
+    public function create(ClassGroup $classGroup)
     {
-        $classGroups = ClassGroup::query()
-            ->where('dosen_id', Auth::id())
-            ->orderBy('name')
-            ->get(['id', 'name', 'is_active']);
+        $this->ensureClassGroupOwner($classGroup);
 
         $modules = CourseModule::query()
             ->orderBy('order_number')
             ->get(['id', 'title', 'order_number']);
 
-        return view('dosen.kuis.create', compact('classGroups', 'modules'));
+        return view('dosen.kuis.create', compact('classGroup', 'modules'));
     }
 
     public function store(Request $request)
@@ -133,6 +130,15 @@ class QuizManagementController extends Controller
             $quiz->is_active
                 ? 'Kuis berhasil diaktifkan dan dapat diakses mahasiswa sesuai syarat pembelajaran.'
                 : 'Kuis berhasil dinonaktifkan. Mahasiswa tidak dapat memulai percobaan baru.'
+        );
+    }
+
+    private function ensureClassGroupOwner(ClassGroup $classGroup): void
+    {
+        abort_unless(
+            (int) $classGroup->dosen_id === (int) Auth::id(),
+            403,
+            'Anda tidak memiliki akses ke kelas ini.'
         );
     }
 

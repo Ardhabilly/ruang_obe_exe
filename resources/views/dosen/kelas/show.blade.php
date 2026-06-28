@@ -73,7 +73,7 @@
                         </p>
                     </div>
 
-                    <a href="{{ route('dosen.kuis.create', ['class_group_id' => $classGroup->id]) }}"
+                    <a href="{{ route('dosen.kelas.kuis.create', $classGroup) }}"
                        class="inline-flex w-fit items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-300">
                         <span class="text-base">+</span>
                         Buat Kuis untuk Kelas Ini

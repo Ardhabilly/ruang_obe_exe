@@ -105,8 +105,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/kuis', [DosenQuizManagementController::class, 'index'])
                 ->name('kuis.index');
 
-            Route::get('/kuis/buat', [DosenQuizManagementController::class, 'create'])
+            Route::get('/kuis/buat', fn () => redirect()->route('dosen.kelas.index'))
                 ->name('kuis.create');
+
+            Route::get('/kelas/{classGroup}/kuis/buat', [DosenQuizManagementController::class, 'create'])
+                ->name('kelas.kuis.create');
 
             Route::post('/kuis', [DosenQuizManagementController::class, 'store'])
                 ->name('kuis.store');
