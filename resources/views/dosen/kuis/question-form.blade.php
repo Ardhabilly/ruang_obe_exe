@@ -140,7 +140,80 @@
 
         if (! is_array($obeResultMatrix)) {
             $obeResultMatrix = [];
-        }    @endphp
+        }        $gaussRows = (int) old('gauss_rows', $data['rows'] ?? 3);
+        $gaussColumns = (int) old('gauss_columns', $data['columns'] ?? 4);
+        $gaussHasSeparator = old('gauss_has_separator', $data['has_separator'] ?? true);
+        $gaussSeparatorBeforeColumn = (int) old(
+            'gauss_separator_before_column',
+            $data['separator_before_column'] ?? $gaussColumns
+        );
+        $gaussInitialMatrix = old('gauss_initial_matrix', $answerKey['initial_matrix'] ?? []);
+        $gaussReferenceMatrix = old('gauss_reference_matrix', $data['reference_echelon_matrix'] ?? []);
+
+        if ($gaussRows < 1 || $gaussRows > 6) {
+            $gaussRows = 3;
+        }
+
+        if ($gaussColumns < 1 || $gaussColumns > 8) {
+            $gaussColumns = 4;
+        }
+
+        if ($gaussSeparatorBeforeColumn < 2 || $gaussSeparatorBeforeColumn > $gaussColumns) {
+            $gaussSeparatorBeforeColumn = $gaussColumns;
+        }
+
+        if (! is_array($gaussInitialMatrix)) {
+            $gaussInitialMatrix = [];
+        }
+
+        if (! is_array($gaussReferenceMatrix)) {
+            $gaussReferenceMatrix = [];
+        }
+
+        $gaussFinalDefinitions = [];
+        $gaussFinalFields = $data['final_fields'] ?? array_keys($acceptedAnswers ?? []);
+        $gaussFinalLabels = $data['final_labels'] ?? [];
+
+        if (! is_array($gaussFinalFields)) {
+            $gaussFinalFields = [];
+        }
+
+        if (! is_array($gaussFinalLabels)) {
+            $gaussFinalLabels = [];
+        }
+
+        foreach (array_values($gaussFinalFields) as $index => $field) {
+            $key = trim((string) $field);
+
+            if ($key === '') {
+                $key = 'g' . ($index + 1);
+            }
+
+            $answer = $acceptedAnswers[$key] ?? '';
+            $answer = is_array($answer) ? ($answer[0] ?? '') : $answer;
+
+            $gaussFinalDefinitions[] = [
+                'label' => trim((string) ($gaussFinalLabels[$key] ?? $key)),
+                'answer' => $answer,
+            ];
+        }
+
+        if (empty($gaussFinalDefinitions)) {
+            $gaussFinalDefinitions = [
+                ['label' => 'x', 'answer' => ''],
+                ['label' => 'y', 'answer' => ''],
+                ['label' => 'z', 'answer' => ''],
+            ];
+        }
+
+        $gaussFinalDefinitions = old('gauss_final_definitions', $gaussFinalDefinitions);
+
+        if (! is_array($gaussFinalDefinitions) || empty($gaussFinalDefinitions)) {
+            $gaussFinalDefinitions = [
+                ['label' => 'x', 'answer' => ''],
+            ];
+        }
+    @endphp
 
     <div class="px-4 py-8 sm:px-6 lg:px-8">
         <div class="mx-auto max-w-5xl space-y-6">
@@ -170,7 +243,7 @@
                     </h1>
 
                     <p class="mt-2 text-sm leading-6 text-slate-400">
-                        Buat soal isian, notasi matematika, nilai variabel, matriks, operasi baris elementer, atau pilihan lebih dari satu jawaban.
+                        Buat soal isian, notasi matematika, nilai variabel, matriks, operasi baris elementer, Eliminasi Gauss, atau pilihan lebih dari satu jawaban.
                     </p>
                 </div>
             </section>
@@ -182,6 +255,81 @@
                 x-data="{
                     questionType: @js($questionType),
                     maximumVariables: 8,
+                    gaussRows: @js($gaussRows),
+                    gaussColumns: @js($gaussColumns),
+                    gaussHasSeparator: @js((bool) $gaussHasSeparator),
+                    gaussSeparatorBeforeColumn: @js($gaussSeparatorBeforeColumn),
+                    gaussFinalDefinitions: @js(array_values($gaussFinalDefinitions)),
+                    gaussFinalCount: {{ min(max(count($gaussFinalDefinitions), 1), 8) }},
+
+                    ensureGaussSettings() {
+                        this.gaussRows = Math.min(6, Math.max(1, Number.parseInt(this.gaussRows, 10) || 1));
+                        this.gaussColumns = Math.min(8, Math.max(1, Number.parseInt(this.gaussColumns, 10) || 1));
+
+                        if (this.gaussHasSeparator && this.gaussColumns < 2) {
+                            this.gaussColumns = 2;
+                        }
+
+                        this.gaussSeparatorBeforeColumn = Math.min(
+                            this.gaussColumns,
+                            Math.max(2, Number.parseInt(this.gaussSeparatorBeforeColumn, 10) || this.gaussColumns)
+                        );
+                    },
+
+                    nextGaussLabel() {
+                        const defaults = ['x', 'y', 'z', 'a', 'b', 'c', 'd', 'e'];
+                        const used = this.gaussFinalDefinitions
+                            .map(item => String(item.label || '').trim().toLowerCase());
+
+                        return defaults.find(label => ! used.includes(label.toLowerCase()))
+                            || 'v' + (this.gaussFinalDefinitions.length + 1);
+                    },
+
+                    addGaussFinal() {
+                        if (this.gaussFinalDefinitions.length >= this.maximumVariables) {
+                            return;
+                        }
+
+                        this.gaussFinalDefinitions.push({
+                            label: this.nextGaussLabel(),
+                            answer: ''
+                        });
+
+                        this.gaussFinalCount = this.gaussFinalDefinitions.length;
+                    },
+
+                    removeGaussFinal(index) {
+                        if (this.gaussFinalDefinitions.length <= 1) {
+                            return;
+                        }
+
+                        this.gaussFinalDefinitions.splice(index, 1);
+                        this.gaussFinalCount = this.gaussFinalDefinitions.length;
+                    },
+
+                    synchronizeGaussFinalCount() {
+                        let count = Number.parseInt(this.gaussFinalCount, 10);
+
+                        if (! Number.isFinite(count)) {
+                            count = this.gaussFinalDefinitions.length || 1;
+                        }
+
+                        count = Math.min(this.maximumVariables, Math.max(1, count));
+
+                        while (this.gaussFinalDefinitions.length < count) {
+                            this.gaussFinalDefinitions.push({
+                                label: this.nextGaussLabel(),
+                                answer: ''
+                            });
+                        }
+
+                        while (this.gaussFinalDefinitions.length > count) {
+                            this.gaussFinalDefinitions.pop();
+                        }
+
+                        this.gaussFinalCount = count;
+                    },
+
                     obeOperationsLatex: @js(array_values($obeOperationsLatex)),
 
                     addObeOperation() {
@@ -355,6 +503,12 @@
                             <span class="mt-1 block text-xs leading-5 text-slate-400">Matriks dengan garis pemisah antara koefisien dan ruas kanan.</span>
                         </label>
 
+                        <label class="cursor-pointer rounded-2xl border p-4 transition"
+                               :class="questionType === 'gauss_elimination' ? 'border-violet-300/40 bg-violet-400/10' : 'border-white/10 bg-slate-950/35 hover:border-white/20'">
+                            <input type="radio" name="question_type" value="gauss_elimination" x-model="questionType" @change="ensureGaussSettings()" class="sr-only">
+                            <span class="block text-sm font-black text-white">Eliminasi Gauss</span>
+                            <span class="mt-1 block text-xs leading-5 text-slate-400">Mahasiswa membentuk eselon baris dan menentukan nilai akhir.</span>
+                        </label>
                         <label class="cursor-pointer rounded-2xl border p-4 transition"
                                :class="questionType === 'obe_matrix_operation' ? 'border-violet-300/40 bg-violet-400/10' : 'border-white/10 bg-slate-950/35 hover:border-white/20'">
                             <input type="radio" name="question_type" value="obe_matrix_operation" x-model="questionType" @change="ensureObeSettings()" class="sr-only">
@@ -540,6 +694,174 @@
                     @error('matrix_answers')
                         <p class="mt-3 text-sm text-red-300">{{ $message }}</p>
                     @enderror
+                </section>
+                <section data-gauss-elimination-configuration="dynamic" x-show="questionType === 'gauss_elimination'" x-transition>
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                        <div>
+                            <p class="text-sm font-black text-white">
+                                Konfigurasi Eliminasi Gauss <span class="text-cyan-200">*</span>
+                            </p>
+
+                            <p class="mt-1 text-xs leading-5 text-slate-500">
+                                Mahasiswa akan mengisi bentuk eselon baris serta nilai akhir setiap variabel.
+                            </p>
+                        </div>
+
+                        <div class="flex gap-3">
+                            <label class="w-24">
+                                <span class="text-xs font-bold uppercase tracking-wide text-slate-400">Baris</span>
+                                <input type="number" name="gauss_rows" min="1" max="6"
+                                       x-model.number="gaussRows" @change="ensureGaussSettings()"
+                                       class="mt-2 h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-center text-sm font-black text-white outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                            </label>
+
+                            <label class="w-24">
+                                <span class="text-xs font-bold uppercase tracking-wide text-slate-400">Kolom</span>
+                                <input type="number" name="gauss_columns" min="1" max="8"
+                                       x-model.number="gaussColumns" @change="ensureGaussSettings()"
+                                       class="mt-2 h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-center text-sm font-black text-white outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-end">
+                        <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-slate-950/35 px-4 py-3">
+                            <input type="hidden" name="gauss_has_separator" value="0">
+                            <input type="checkbox"
+                                   name="gauss_has_separator"
+                                   value="1"
+                                   x-model="gaussHasSeparator"
+                                   @change="ensureGaussSettings()"
+                                   class="rounded border-slate-500 bg-slate-900 text-cyan-400 focus:ring-cyan-400">
+                            <span class="text-sm font-bold text-slate-300">Gunakan garis pemisah ruas kanan</span>
+                        </label>
+
+                        <label x-show="gaussHasSeparator" x-transition class="block">
+                            <span class="text-xs font-bold uppercase tracking-wide text-slate-400">Kolom Awal Ruas Kanan</span>
+                            <input type="number" name="gauss_separator_before_column" min="2"
+                                   :max="gaussColumns" x-model.number="gaussSeparatorBeforeColumn"
+                                   @change="ensureGaussSettings()"
+                                   class="mt-2 h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-center text-sm font-black text-white outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                        </label>
+                    </div>
+
+                    <div class="mt-5 grid gap-4 xl:grid-cols-2">
+                        <div class="overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/35 p-4">
+                            <p class="text-sm font-black text-white">Matriks Awal</p>
+                            <p class="mt-1 text-xs leading-5 text-slate-500">Matriks yang akan dieliminasi oleh mahasiswa.</p>
+
+                            <div class="mt-4 w-max">
+                                <div class="grid gap-2" :style="'grid-template-columns: repeat(' + gaussColumns + ', 62px)'">
+                                    @for ($row = 0; $row < 6; $row++)
+                                        @for ($column = 0; $column < 8; $column++)
+                                            <input type="text"
+                                                   x-show="gaussRows > {{ $row }} && gaussColumns > {{ $column }}"
+                                                   name="gauss_initial_matrix[{{ $row }}][{{ $column }}]"
+                                                   value="{{ $gaussInitialMatrix[$row][$column] ?? '' }}"
+                                                   autocomplete="off"
+                                                   placeholder="0"
+                                                   :class="{ 'border-l-4 border-l-violet-300': gaussHasSeparator && gaussSeparatorBeforeColumn === {{ $column + 1 }} }"
+                                                   class="h-11 rounded-xl border border-white/10 bg-slate-950/60 px-2 text-center font-mono text-sm font-black text-white placeholder:text-slate-600 outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                                        @endfor
+                                    @endfor
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/35 p-4">
+                            <p class="text-sm font-black text-white">Acuan Bentuk Eselon Baris</p>
+                            <p class="mt-1 text-xs leading-5 text-slate-500">Diisi sebagai acuan dosen. Sistem tetap menerima bentuk eselon lain yang valid dan ekuivalen.</p>
+
+                            <div class="mt-4 w-max">
+                                <div class="grid gap-2" :style="'grid-template-columns: repeat(' + gaussColumns + ', 62px)'">
+                                    @for ($row = 0; $row < 6; $row++)
+                                        @for ($column = 0; $column < 8; $column++)
+                                            <input type="text"
+                                                   x-show="gaussRows > {{ $row }} && gaussColumns > {{ $column }}"
+                                                   name="gauss_reference_matrix[{{ $row }}][{{ $column }}]"
+                                                   value="{{ $gaussReferenceMatrix[$row][$column] ?? '' }}"
+                                                   autocomplete="off"
+                                                   placeholder="0"
+                                                   :class="{ 'border-l-4 border-l-violet-300': gaussHasSeparator && gaussSeparatorBeforeColumn === {{ $column + 1 }} }"
+                                                   class="h-11 rounded-xl border border-white/10 bg-slate-950/60 px-2 text-center font-mono text-sm font-black text-white placeholder:text-slate-600 outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                                        @endfor
+                                    @endfor
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-5 rounded-2xl border border-white/10 bg-slate-950/35 p-4">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                            <div>
+                                <p class="text-sm font-black text-white">
+                                    Nilai Akhir Variabel <span class="text-cyan-200">*</span>
+                                </p>
+
+                                <p class="mt-1 text-xs leading-5 text-slate-500">
+                                    Atur jumlah, nama, dan jawaban akhir variabel yang harus diisi mahasiswa.
+                                </p>
+                            </div>
+
+                            <label class="w-full sm:w-40">
+                                <span class="text-xs font-bold uppercase tracking-wide text-slate-400">Jumlah variabel</span>
+                                <input type="number" min="1" max="8"
+                                       x-model.number="gaussFinalCount"
+                                       @change="synchronizeGaussFinalCount()"
+                                       @input.debounce.300ms="synchronizeGaussFinalCount()"
+                                       class="mt-2 h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-center text-sm font-black text-white outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                            </label>
+                        </div>
+
+                        <div class="mt-4 space-y-3">
+                            <template x-for="(variable, index) in gaussFinalDefinitions" :key="index">
+                                <div class="grid gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 sm:grid-cols-[40px_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+                                    <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-400/10 text-sm font-black text-violet-100" x-text="index + 1"></span>
+
+                                    <label class="block">
+                                        <span class="text-xs font-bold uppercase tracking-wide text-slate-400">Nama Variabel</span>
+                                        <input type="text"
+                                               :name="'gauss_final_definitions[' + index + '][label]'"
+                                               x-model="variable.label"
+                                               maxlength="40"
+                                               placeholder="Contoh: x"
+                                               autocomplete="off"
+                                               class="mt-2 h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm font-black text-white placeholder:text-slate-500 outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                                    </label>
+
+                                    <label class="block">
+                                        <span class="text-xs font-bold uppercase tracking-wide text-slate-400">Jawaban Akhir</span>
+                                        <input type="text"
+                                               :name="'gauss_final_definitions[' + index + '][answer]'"
+                                               x-model="variable.answer"
+                                               placeholder="Contoh: -1/2"
+                                               autocomplete="off"
+                                               class="mt-2 h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-center font-mono text-sm font-black text-white placeholder:text-slate-500 outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                                    </label>
+
+                                    <button type="button"
+                                            @click="removeGaussFinal(index)"
+                                            :disabled="gaussFinalDefinitions.length <= 1"
+                                            class="h-10 rounded-xl border border-red-300/20 bg-red-400/10 px-3 text-xs font-black text-red-200 transition hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-40">
+                                        Hapus
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+
+                        <button type="button"
+                                @click="addGaussFinal()"
+                                :disabled="gaussFinalDefinitions.length >= maximumVariables"
+                                class="mt-4 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3.5 py-2 text-xs font-black text-violet-100 transition hover:bg-violet-400/20 disabled:cursor-not-allowed disabled:opacity-40">
+                            + Tambah Variabel
+                        </button>
+                    </div>
+
+                    @foreach (['gauss_rows', 'gauss_columns', 'gauss_separator_before_column', 'gauss_initial_matrix', 'gauss_reference_matrix', 'gauss_final_definitions'] as $errorField)
+                        @error($errorField)
+                            <p class="mt-3 text-sm text-red-300">{{ $message }}</p>
+                        @enderror
+                    @endforeach
                 </section>
                 <section data-obe-configuration="dynamic" x-show="questionType === 'obe_matrix_operation'" x-transition>
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">

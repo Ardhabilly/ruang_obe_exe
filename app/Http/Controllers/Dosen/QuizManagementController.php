@@ -22,6 +22,7 @@ class QuizManagementController extends Controller
         'matrix',
         'augmented_matrix',
         'obe_matrix_operation',
+        'gauss_elimination',
         'checkbox',
     ];
 
@@ -306,6 +307,20 @@ class QuizManagementController extends Controller
             'obe_result_matrix.*.*' => ['nullable', 'string', 'max:100'],
             'obe_operations_latex' => ['nullable', 'array', 'min:1', 'max:12'],
             'obe_operations_latex.*' => ['nullable', 'string', 'max:1000'],
+            'gauss_rows' => ['nullable', 'integer', 'min:1', 'max:6'],
+            'gauss_columns' => ['nullable', 'integer', 'min:1', 'max:8'],
+            'gauss_has_separator' => ['nullable', 'boolean'],
+            'gauss_separator_before_column' => ['nullable', 'integer', 'min:2', 'max:8'],
+            'gauss_initial_matrix' => ['nullable', 'array'],
+            'gauss_initial_matrix.*' => ['nullable', 'array'],
+            'gauss_initial_matrix.*.*' => ['nullable', 'string', 'max:100'],
+            'gauss_reference_matrix' => ['nullable', 'array'],
+            'gauss_reference_matrix.*' => ['nullable', 'array'],
+            'gauss_reference_matrix.*.*' => ['nullable', 'string', 'max:100'],
+            'gauss_final_definitions' => ['nullable', 'array', 'min:1', 'max:8'],
+            'gauss_final_definitions.*' => ['nullable', 'array'],
+            'gauss_final_definitions.*.label' => ['nullable', 'string', 'max:60'],
+            'gauss_final_definitions.*.answer' => ['nullable', 'string', 'max:100'],
             'explanation' => ['nullable', 'string', 'max:2000'],
             'points' => ['required', 'integer', 'min:1', 'max:100'],
             'is_required' => ['nullable', 'boolean'],
@@ -320,6 +335,120 @@ class QuizManagementController extends Controller
             $questionData['equations'] = $equations;
         }
 
+        if ($questionType === 'gauss_elimination') {
+            $rows = (int) ($validated['gauss_rows'] ?? 0);
+            $columns = (int) ($validated['gauss_columns'] ?? 0);
+
+            if ($rows < 1 || $rows > 6 || $columns < 1 || $columns > 8) {
+                throw ValidationException::withMessages([
+                    'gauss_rows' => 'Ukuran matriks Eliminasi Gauss harus terdiri dari 1–6 baris dan 1–8 kolom.',
+                ]);
+            }
+
+            $hasSeparator = $request->boolean('gauss_has_separator');
+
+            if ($hasSeparator && $columns < 2) {
+                throw ValidationException::withMessages([
+                    'gauss_columns' => 'Matriks dengan garis pemisah memerlukan minimal dua kolom.',
+                ]);
+            }
+
+            $separatorBeforeColumn = $hasSeparator
+                ? (int) ($validated['gauss_separator_before_column'] ?? $columns)
+                : null;
+
+            if ($hasSeparator
+                && ($separatorBeforeColumn < 2 || $separatorBeforeColumn > $columns)) {
+                throw ValidationException::withMessages([
+                    'gauss_separator_before_column' => 'Kolom awal ruas kanan harus berada pada rentang 2 sampai jumlah kolom matriks.',
+                ]);
+            }
+
+            $initialMatrix = $this->buildRequiredMatrix(
+                (array) ($validated['gauss_initial_matrix'] ?? []),
+                $rows,
+                $columns,
+                'gauss_initial_matrix',
+                'matriks awal'
+            );
+
+            $referenceMatrix = $this->buildRequiredMatrix(
+                (array) ($validated['gauss_reference_matrix'] ?? []),
+                $rows,
+                $columns,
+                'gauss_reference_matrix',
+                'matriks acuan bentuk eselon baris'
+            );
+
+            $definitions = $validated['gauss_final_definitions'] ?? [];
+
+            if (! is_array($definitions) || empty($definitions)) {
+                throw ValidationException::withMessages([
+                    'gauss_final_definitions' => 'Masukkan minimal satu nilai akhir variabel.',
+                ]);
+            }
+
+            $finalFields = [];
+            $finalLabels = [];
+            $acceptedAnswers = [];
+            $usedLabels = [];
+
+            foreach (array_values($definitions) as $index => $definition) {
+                $label = $this->normalizeVariableLabel($definition['label'] ?? null);
+                $answer = $this->nullableText($definition['answer'] ?? null);
+                $position = $index + 1;
+
+                if ($label === null) {
+                    throw ValidationException::withMessages([
+                        'gauss_final_definitions.' . $index . '.label' => 'Masukkan nama variabel ke-' . $position . '.',
+                    ]);
+                }
+
+                $fingerprint = $this->variableLabelFingerprint($label);
+
+                if (isset($usedLabels[$fingerprint])) {
+                    throw ValidationException::withMessages([
+                        'gauss_final_definitions.' . $index . '.label' => 'Nama variabel akhir tidak boleh sama.',
+                    ]);
+                }
+
+                if ($answer === null) {
+                    throw ValidationException::withMessages([
+                        'gauss_final_definitions.' . $index . '.answer' => 'Masukkan nilai akhir untuk ' . $label . '.',
+                    ]);
+                }
+
+                $key = 'g' . $position;
+
+                $usedLabels[$fingerprint] = true;
+                $finalFields[] = $key;
+                $finalLabels[$key] = $label;
+                $acceptedAnswers[$key] = [$answer];
+            }
+
+            $gaussData = $questionData;
+            $gaussData['rows'] = $rows;
+            $gaussData['columns'] = $columns;
+            $gaussData['has_separator'] = $hasSeparator;
+            $gaussData['reference_echelon_matrix'] = $referenceMatrix;
+            $gaussData['final_fields'] = $finalFields;
+            $gaussData['final_labels'] = $finalLabels;
+
+            if ($hasSeparator) {
+                $gaussData['separator_before_column'] = $separatorBeforeColumn;
+            }
+
+            return [
+                'question_text' => trim($validated['question_text']),
+                'question_type' => 'gauss_elimination',
+                'question_data' => $gaussData,
+                'answer_key' => ['initial_matrix' => $initialMatrix],
+                'accepted_answers' => $acceptedAnswers,
+                'explanation' => $this->nullableText($validated['explanation'] ?? null),
+                'points' => (int) $validated['points'],
+                'is_required' => $request->boolean('is_required', true),
+            ];
+        }
         if ($questionType === 'obe_matrix_operation') {
             $rows = (int) ($validated['obe_rows'] ?? 0);
             $columns = (int) ($validated['obe_columns'] ?? 0);

@@ -835,7 +835,13 @@
                                         @php
                                             $rows = (int) ($data['rows'] ?? 3);
                                             $columns = (int) ($data['columns'] ?? 4);
-                                            $separatorBefore = (int) ($data['separator_before_column'] ?? $columns);
+                                            $hasSeparator = (bool) ($data['has_separator'] ?? isset($data['separator_before_column']));
+                                            $separatorBefore = $hasSeparator
+                                                ? (int) ($data['separator_before_column'] ?? $columns)
+                                                : 0;
+                                            $initialMatrix = $question->question_type === 'gauss_elimination'
+                                                ? ($question->answer_key['initial_matrix'] ?? $data['initial_matrix'] ?? [])
+                                                : [];
                                             $equations = $data['equations'] ?? [];
                                             $finalFields = $data['final_fields'] ?? ['x', 'y', 'z'];
                                             $finalLabels = $data['final_labels'] ?? [];
@@ -847,13 +853,35 @@
                                         @endphp
 
                                         <div class="space-y-4 pb-3">
-                                            <div class="overflow-x-auto pb-1">
-                                                <div class="mx-auto w-max rounded-2xl border border-slate-300 bg-slate-50 px-6 py-3 text-center text-base font-normal leading-7 text-slate-900">
-                                                    @foreach ($equations as $equation)
-                                                        <div>\({{ $equation }}\)</div>
-                                                    @endforeach
+                                            @if (! empty($initialMatrix))
+                                                <div class="overflow-x-auto pb-1">
+                                                    <div class="mx-auto w-max rounded-2xl border border-slate-300 bg-slate-50 p-4">
+                                                        <p class="mb-3 text-center text-sm font-black text-slate-700">
+                                                            {{ $hasSeparator ? 'Matriks teraugmentasi awal' : 'Matriks awal' }}
+                                                        </p>
+
+                                                        <div class="grid gap-2" style="grid-template-columns: repeat({{ $columns }}, 58px);">
+                                                            @for ($r = 0; $r < $rows; $r++)
+                                                                @for ($c = 0; $c < $columns; $c++)
+                                                                    <div class="flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white text-center font-black text-slate-900 {{ $hasSeparator && ($c + 1) === $separatorBefore ? 'border-l-4 border-l-slate-700' : '' }}">
+                                                                        {{ $initialMatrix[$r][$c] ?? '' }}
+                                                                    </div>
+                                                                @endfor
+                                                            @endfor
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            @endif
+
+                                            @if (! empty($equations))
+                                                <div class="overflow-x-auto pb-1">
+                                                    <div class="mx-auto w-max rounded-2xl border border-slate-300 bg-slate-50 px-6 py-3 text-center text-base font-normal leading-7 text-slate-900">
+                                                        @foreach ($equations as $equation)
+                                                            <div>\({{ $equation }}\)</div>
+                                                        @endforeach
+                                                    </div>
+                                                </div>
+                                            @endif
 
                                             <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
                                                 <div
