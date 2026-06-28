@@ -52,12 +52,36 @@ class PracticeController extends Controller
             : [];
 
         /*
+        | Definisi latihan tertentu dapat diperbarui. Apabila versi definisi
+        | berubah, jawaban dan status lama untuk latihan tersebut direset
+        | agar seluruh kolom sesuai versi baru dapat dikerjakan kembali.
+        */
+        $expectedDefinitionVersion = $practice['definition_version'] ?? null;
+
+        if (
+            $expectedDefinitionVersion !== null
+            && ($previousMeta['definition_version'] ?? null) !== $expectedDefinitionVersion
+        ) {
+            $storedAnswers = [];
+            $previousFields = [];
+            $previousGroups = [];
+            $previousMeta = [];
+        }
+        /*
         | Revisi ini mengubah aturan kesempatan dari per nomor soal menjadi
         | per komponen pembelajaran. Riwayat dengan format lama diabaikan
         | saat mahasiswa melakukan pemeriksaan berikutnya agar perhitungan
         | dimulai dari aturan yang baru.
         */
         $usesComponentAttemptScope = ($previousMeta['attempt_scope'] ?? null) === 'component';
+
+        /* PRACTICE_DEFINITION_VERSION_GUARD */
+        $practiceDefinitionVersion = (string) ($practice['definition_version'] ?? '');
+        $storedDefinitionVersion = (string) ($previousMeta['definition_version'] ?? '');
+
+        if ($practiceDefinitionVersion !== '' && $storedDefinitionVersion !== $practiceDefinitionVersion) {
+            $usesComponentAttemptScope = false;
+        }
 
         if (! $usesComponentAttemptScope) {
             $storedAnswers = [];
@@ -218,7 +242,8 @@ class PracticeController extends Controller
             'fields' => $fields,
             '_meta' => [
                 'attempt_scope' => 'component',
-                'max_attempts' => self::MAX_ATTEMPTS_PER_COMPONENT,
+                'definition_version' => $practice['definition_version'] ?? null,
+                'definition_version' => $expectedDefinitionVersion,                'max_attempts' => self::MAX_ATTEMPTS_PER_COMPONENT,
                 'attempts' => $attempts,
                 'status' => $componentStatus,
                 'groups' => $groups,
@@ -454,6 +479,16 @@ class PracticeController extends Controller
 
     private function getPracticeDefinition(string $practiceKey): ?array
     {
+        if ($definition = $this->getSubbab32PracticeDefinition($practiceKey)) {
+            return $definition;
+        }
+
+        if ($definition = $this->getSubbab31PracticeDefinition($practiceKey)) {
+            return $definition;
+        }
+        if ($definition = $this->getSubbab22PracticeDefinition($practiceKey)) {
+            return $definition;
+        }
 
         return match ($practiceKey) {
             'aktivitas-1-1' => [
@@ -1447,7 +1482,19 @@ class PracticeController extends Controller
 
     private function normalize(mixed $value): string
     {
+        /* SUBBAB_3_2_MATHLIVE_NORMALIZATION */
         $value = strtolower(trim((string) $value));
+        $value = preg_replace_callback(
+            '/\\\\(?:d?frac)\{([^{}]+)\}\{([^{}]+)\}/',
+            static fn (array $matches) => $matches[1] . '/' . $matches[2],
+            $value
+        ) ?? $value;
+        $value = str_replace(
+            ['\\leftarrow', '\\gets', '<-', '→', '\\left', '\\right', '\\,', '\\!', '\\cdot', '\\times'],
+            ['←', '←', '←', '→', '', '', '', '', '*', '*'],
+            $value
+        );
+        $value = str_replace(['{', '}', '\\'], '', $value);
         $value = str_replace(['√', '−', '–'], ['sqrt', '-', '-'], $value);
         $value = str_replace(['₁', '₂', '₃'], ['1', '2', '3'], $value);
         $value = str_replace(['_', '*', '(', ')'], '', $value);
@@ -1465,5 +1512,801 @@ class PracticeController extends Controller
             ->sort()
             ->values()
             ->all();
+    }
+
+    // SUBBAB_2_2_OBE_REVISION_V2
+    private function getSubbab22PracticeDefinition(string $practiceKey): ?array
+    {
+        $question = static function (array $acceptedAnswers, string $displayAnswer, string $feedbackWrong): array {
+            return [
+                'accepted_answers' => $acceptedAnswers,
+                'display_answer' => $displayAnswer,
+                'feedback_correct' => 'Benar.',
+                'feedback_wrong' => $feedbackWrong,
+            ];
+        };
+
+        $valueAnswers = static function (string $value): array {
+            return match ($value) {
+                '1/2' => ['1/2', '1 per 2'],
+                '-1/2' => ['-1/2', '-1 per 2'],
+                '2/3' => ['2/3', '2 per 3'],
+                '-2/3' => ['-2/3', '-2 per 3'],
+                '-1/3' => ['-1/3', '-1 per 3'],
+                '-3/4' => ['-3/4', '-3 per 4'],
+                '-4/3' => ['-4/3', '-4 per 3'],
+                '3/2' => ['3/2', '3 per 2'],
+                default => [$value],
+            };
+        };
+
+        $valueQuestions = static function (array $values, string $feedbackWrong) use ($question, $valueAnswers): array {
+            $questions = [];
+
+            foreach ($values as $field => $value) {
+                $value = (string) $value;
+                $questions[$field] = $question(
+                    $valueAnswers($value),
+                    $value,
+                    $feedbackWrong,
+                );
+            }
+
+            return $questions;
+        };
+
+        return match ($practiceKey) {
+            'contoh-simulasi-2-2-pertukaran' => [
+                'title' => 'Contoh Simulasi 2.2.1 - Pertukaran Dua Baris',
+                'type' => 'contoh_simulasi',
+                'definition_version' => 'subbab22_obe_revisi_v2',
+                'max_score' => 0,
+                'groups' => [
+                    'q1' => [
+                        'number' => 1,
+                        'fields' => [
+                            'baris_target', 'baris_pengganti',
+                            'hasil_11', 'hasil_13', 'hasil_22', 'hasil_24',
+                        ],
+                        'points' => 0,
+                    ],
+                ],
+                'questions' => [
+                    'baris_target' => $question(
+                        ['1', 'baris 1', 'baris ke-1'],
+                        '1',
+                        'Elemen pembuka bernilai 0 berada pada Baris-1.'
+                    ),
+                    'baris_pengganti' => $question(
+                        ['2', 'baris 2', 'baris ke-2'],
+                        '2',
+                        'Pilih baris di bawah Baris-1 yang memiliki elemen pertama bernilai 1.'
+                    ),
+                    ...$valueQuestions([
+                        'hasil_11' => '1',
+                        'hasil_13' => '1',
+                        'hasil_22' => '1',
+                        'hasil_24' => '9',
+                    ], 'Perhatikan kembali posisi setiap baris setelah Baris-1 dan Baris-2 ditukar.'),
+                ],
+            ],
+
+            'contoh-simulasi-2-2-perkalian-a' => [
+                'title' => 'Contoh Simulasi 2.2.2 - Perkalian Baris dengan Konstanta Tak Nol',
+                'type' => 'contoh_simulasi',
+                'definition_version' => 'subbab22_obe_revisi_v2',
+                'max_score' => 0,
+                'groups' => [
+                    'q1' => [
+                        'number' => 1,
+                        'fields' => [
+                            'rincian_awal_21', 'rincian_awal_22', 'rincian_awal_23',
+                            'rincian_hasil_21', 'rincian_hasil_22', 'rincian_hasil_23',
+                            'hasil_21', 'hasil_22', 'hasil_23',
+                        ],
+                        'points' => 0,
+                    ],
+                ],
+                'questions' => [
+                    ...$valueQuestions([
+                        'rincian_awal_21' => '0',
+                        'rincian_awal_22' => '2',
+                        'rincian_awal_23' => '8',
+                        'rincian_hasil_21' => '0',
+                        'rincian_hasil_22' => '1',
+                        'rincian_hasil_23' => '4',
+                        'hasil_21' => '0',
+                        'hasil_22' => '1',
+                        'hasil_23' => '4',
+                    ], 'Kalikan setiap elemen pada Baris-2 dengan 1/2.'),
+                ],
+            ],
+
+            'contoh-simulasi-2-2-perkalian-b' => [
+                'title' => 'Contoh Simulasi 2.2.3 - Perkalian Baris dengan Pecahan',
+                'type' => 'contoh_simulasi',
+                'definition_version' => 'subbab22_obe_revisi_v2',
+                'max_score' => 0,
+                'groups' => [
+                    'q1' => [
+                        'number' => 1,
+                        'fields' => [
+                            'rincian_awal_21', 'rincian_awal_22', 'rincian_awal_23',
+                            'rincian_hasil_21', 'rincian_hasil_22', 'rincian_hasil_23',
+                            'hasil_21', 'hasil_22', 'hasil_23',
+                        ],
+                        'points' => 0,
+                    ],
+                ],
+                'questions' => [
+                    ...$valueQuestions([
+                        'rincian_awal_21' => '0',
+                        'rincian_awal_22' => '2/3',
+                        'rincian_awal_23' => '4',
+                        'rincian_hasil_21' => '0',
+                        'rincian_hasil_22' => '1',
+                        'rincian_hasil_23' => '6',
+                        'hasil_21' => '0',
+                        'hasil_22' => '1',
+                        'hasil_23' => '6',
+                    ], 'Kalikan setiap elemen pada Baris-2 dengan 3/2.'),
+                ],
+            ],
+
+            'contoh-simulasi-2-2-penjumlahan-a' => [
+                'title' => 'Contoh Simulasi 2.2.4 - Penjumlahan Kelipatan Baris',
+                'type' => 'contoh_simulasi',
+                'definition_version' => 'subbab22_obe_revisi_v2',
+                'max_score' => 0,
+                'groups' => [
+                    'q1' => [
+                        'number' => 1,
+                        'fields' => [
+                            'rincian_target_31', 'rincian_target_32', 'rincian_target_33', 'rincian_target_34',
+                            'rincian_kali_31', 'rincian_kali_32', 'rincian_kali_33', 'rincian_kali_34',
+                            'rincian_jumlah_target_31', 'rincian_jumlah_target_32', 'rincian_jumlah_target_33', 'rincian_jumlah_target_34',
+                            'rincian_hasil_31', 'rincian_hasil_32', 'rincian_hasil_33', 'rincian_hasil_34',
+                            'hasil_31', 'hasil_32', 'hasil_33', 'hasil_34',
+                        ],
+                        'points' => 0,
+                    ],
+                ],
+                'questions' => [
+                    ...$valueQuestions([
+                        'rincian_target_31' => '2',
+                        'rincian_target_32' => '1',
+                        'rincian_target_33' => '-1',
+                        'rincian_target_34' => '3',
+                        'rincian_kali_31' => '-2',
+                        'rincian_kali_32' => '-2',
+                        'rincian_kali_33' => '-2',
+                        'rincian_kali_34' => '-12',
+                        'rincian_jumlah_target_31' => '2',
+                        'rincian_jumlah_target_32' => '1',
+                        'rincian_jumlah_target_33' => '-1',
+                        'rincian_jumlah_target_34' => '3',
+                        'rincian_hasil_31' => '0',
+                        'rincian_hasil_32' => '-1',
+                        'rincian_hasil_33' => '-3',
+                        'rincian_hasil_34' => '-9',
+                        'hasil_31' => '0',
+                        'hasil_32' => '-1',
+                        'hasil_33' => '-3',
+                        'hasil_34' => '-9',
+                    ], 'Gunakan hasil operasi -2B1 + B3 pada setiap elemen Baris-3.'),
+                ],
+            ],
+
+            'contoh-simulasi-2-2-penjumlahan-b' => [
+                'title' => 'Contoh Simulasi 2.2.5 - Penjumlahan Kelipatan dengan Pecahan',
+                'type' => 'contoh_simulasi',
+                'definition_version' => 'subbab22_obe_revisi_v2',
+                'max_score' => 0,
+                'groups' => [
+                    'q1' => [
+                        'number' => 1,
+                        'fields' => [
+                            'rincian_target_21', 'rincian_target_22', 'rincian_target_23', 'rincian_target_24',
+                            'rincian_kali_21', 'rincian_kali_22', 'rincian_kali_23', 'rincian_kali_24',
+                            'rincian_jumlah_target_21', 'rincian_jumlah_target_22', 'rincian_jumlah_target_23', 'rincian_jumlah_target_24',
+                            'rincian_hasil_21', 'rincian_hasil_22', 'rincian_hasil_23', 'rincian_hasil_24',
+                            'hasil_21', 'hasil_22', 'hasil_23', 'hasil_24',
+                        ],
+                        'points' => 0,
+                    ],
+                ],
+                'questions' => [
+                    ...$valueQuestions([
+                        'rincian_target_21' => '1/2',
+                        'rincian_target_22' => '3',
+                        'rincian_target_23' => '1',
+                        'rincian_target_24' => '4',
+                        'rincian_kali_21' => '-1/2',
+                        'rincian_kali_22' => '-1',
+                        'rincian_kali_23' => '1/2',
+                        'rincian_kali_24' => '-2',
+                        'rincian_jumlah_target_21' => '1/2',
+                        'rincian_jumlah_target_22' => '3',
+                        'rincian_jumlah_target_23' => '1',
+                        'rincian_jumlah_target_24' => '4',
+                        'rincian_hasil_21' => '0',
+                        'rincian_hasil_22' => '2',
+                        'rincian_hasil_23' => '3/2',
+                        'rincian_hasil_24' => '2',
+                        'hasil_21' => '0',
+                        'hasil_22' => '2',
+                        'hasil_23' => '3/2',
+                        'hasil_24' => '2',
+                    ], 'Gunakan hasil operasi -1/2B1 + B2 pada setiap elemen Baris-2.'),
+                ],
+            ],
+
+            'aktivitas-2-1-obe' => [
+                'title' => 'Aktivitas 2.1 - Latihan Mandiri Operasi Baris Elementer',
+                'type' => 'aktivitas',
+                'definition_version' => 'subbab22_obe_revisi_v2',
+                'max_score' => 100,
+                'groups' => [
+                    'k1' => [
+                        'number' => 1,
+                        'fields' => [
+                            'k1_i', 'k1_j', 'k1_notasi',
+                            'k1_11', 'k1_12', 'k1_13', 'k1_14',
+                            'k1_21', 'k1_22', 'k1_23', 'k1_24',
+                            'k1_31', 'k1_32', 'k1_33', 'k1_34',
+                        ],
+                        'points' => 20,
+                    ],
+                    'k2a' => [
+                        'number' => 2,
+                        'fields' => [
+                            'k2a_i', 'k2a_k', 'k2a_notasi',
+                            'k2a_rincian_awal_21', 'k2a_rincian_awal_22', 'k2a_rincian_awal_23', 'k2a_rincian_awal_24',
+                            'k2a_rincian_hasil_21', 'k2a_rincian_hasil_22', 'k2a_rincian_hasil_23', 'k2a_rincian_hasil_24',
+                            'k2a_11', 'k2a_12', 'k2a_13', 'k2a_14',
+                            'k2a_21', 'k2a_22', 'k2a_23', 'k2a_24',
+                            'k2a_31', 'k2a_32', 'k2a_33', 'k2a_34',
+                        ],
+                        'points' => 20,
+                    ],
+                    'k2b' => [
+                        'number' => 3,
+                        'fields' => [
+                            'k2b_i', 'k2b_k', 'k2b_notasi',
+                            'k2b_rincian_awal_21', 'k2b_rincian_awal_22', 'k2b_rincian_awal_23', 'k2b_rincian_awal_24',
+                            'k2b_rincian_hasil_21', 'k2b_rincian_hasil_22', 'k2b_rincian_hasil_23', 'k2b_rincian_hasil_24',
+                            'k2b_11', 'k2b_12', 'k2b_13', 'k2b_14',
+                            'k2b_21', 'k2b_22', 'k2b_23', 'k2b_24',
+                            'k2b_31', 'k2b_32', 'k2b_33', 'k2b_34',
+                        ],
+                        'points' => 20,
+                    ],
+                    'k3a' => [
+                        'number' => 4,
+                        'fields' => [
+                            'k3a_i', 'k3a_j', 'k3a_k', 'k3a_notasi',
+                            'k3a_rincian_acuan_11', 'k3a_rincian_acuan_12', 'k3a_rincian_acuan_13',
+                            'k3a_rincian_target_21', 'k3a_rincian_target_22', 'k3a_rincian_target_23',
+                            'k3a_rincian_kali_21', 'k3a_rincian_kali_22', 'k3a_rincian_kali_23',
+                            'k3a_rincian_jumlah_target_21', 'k3a_rincian_jumlah_target_22', 'k3a_rincian_jumlah_target_23',
+                            'k3a_rincian_hasil_21', 'k3a_rincian_hasil_22', 'k3a_rincian_hasil_23',
+                            'k3a_11', 'k3a_12', 'k3a_13',
+                            'k3a_21', 'k3a_22', 'k3a_23',
+                        ],
+                        'points' => 20,
+                    ],
+                    'k3b' => [
+                        'number' => 5,
+                        'fields' => [
+                            'k3b_i', 'k3b_j', 'k3b_k', 'k3b_notasi',
+                            'k3b_rincian_acuan_11', 'k3b_rincian_acuan_12', 'k3b_rincian_acuan_13',
+                            'k3b_rincian_target_21', 'k3b_rincian_target_22', 'k3b_rincian_target_23',
+                            'k3b_rincian_kali_21', 'k3b_rincian_kali_22', 'k3b_rincian_kali_23',
+                            'k3b_rincian_jumlah_target_21', 'k3b_rincian_jumlah_target_22', 'k3b_rincian_jumlah_target_23',
+                            'k3b_rincian_hasil_21', 'k3b_rincian_hasil_22', 'k3b_rincian_hasil_23',
+                            'k3b_11', 'k3b_12', 'k3b_13',
+                            'k3b_21', 'k3b_22', 'k3b_23',
+                        ],
+                        'points' => 20,
+                    ],
+                ],
+                'questions' => [
+                    'k1_i' => $question(['1', 'baris 1', 'baris ke-1'], '1', 'Baris yang diawali 0 adalah Baris-1.'),
+                    'k1_j' => $question(['3', 'baris 3', 'baris ke-3'], '3', 'Baris di bawah yang diawali angka 1 adalah Baris-3.'),
+                    'k1_notasi' => $question(
+                        ['b1↔b3', 'b1<->b3', 'b1<=>b3', 'b_1↔b_3', 'b_1<->b_3'],
+                        'B1 ↔ B3',
+                        'Gunakan notasi pertukaran antara Baris-1 dan Baris-3.'
+                    ),
+                    ...$valueQuestions([
+                        'k1_11' => '1', 'k1_12' => '4', 'k1_13' => '2', 'k1_14' => '7',
+                        'k1_21' => '3', 'k1_22' => '-1', 'k1_23' => '5', 'k1_24' => '2',
+                        'k1_31' => '0', 'k1_32' => '2', 'k1_33' => '-1', 'k1_34' => '4',
+                    ], 'Tukar seluruh isi Baris-1 dengan Baris-3. Baris-2 tidak berubah.'),
+
+                    'k2a_i' => $question(['2', 'baris 2', 'baris ke-2'], '2', 'Elemen target berada pada Baris-2.'),
+                    'k2a_k' => $question(['-1/3', '-1 per 3'], '-1/3', 'Kebalikan perkalian dari -3 adalah -1/3.'),
+                    'k2a_notasi' => $question(
+                        ['b2←-1/3b2', 'b2<--1/3b2', 'b_2←-1/3b_2', 'b_2<--1/3b_2'],
+                        'B2 ← -1/3 B2',
+                        'Kalikan seluruh Baris-2 dengan -1/3.'
+                    ),
+                    ...$valueQuestions([
+                        'k2a_rincian_awal_21' => '0', 'k2a_rincian_awal_22' => '-3', 'k2a_rincian_awal_23' => '6', 'k2a_rincian_awal_24' => '-9',
+                        'k2a_rincian_hasil_21' => '0', 'k2a_rincian_hasil_22' => '1', 'k2a_rincian_hasil_23' => '-2', 'k2a_rincian_hasil_24' => '3',
+                        'k2a_11' => '1', 'k2a_12' => '3', 'k2a_13' => '-4', 'k2a_14' => '7',
+                        'k2a_21' => '0', 'k2a_22' => '1', 'k2a_23' => '-2', 'k2a_24' => '3',
+                        'k2a_31' => '2', 'k2a_32' => '1', 'k2a_33' => '5', 'k2a_34' => '4',
+                    ], 'Kalikan seluruh elemen Baris-2 dengan -1/3.'),
+
+                    'k2b_i' => $question(['2', 'baris 2', 'baris ke-2'], '2', 'Elemen target berada pada Baris-2.'),
+                    'k2b_k' => $question(['-4/3', '-4 per 3'], '-4/3', 'Kebalikan perkalian dari -3/4 adalah -4/3.'),
+                    'k2b_notasi' => $question(
+                        ['b2←-4/3b2', 'b2<--4/3b2', 'b_2←-4/3b_2', 'b_2<--4/3b_2'],
+                        'B2 ← -4/3 B2',
+                        'Kalikan seluruh Baris-2 dengan -4/3.'
+                    ),
+                    ...$valueQuestions([
+                        'k2b_rincian_awal_21' => '0', 'k2b_rincian_awal_22' => '-3/4', 'k2b_rincian_awal_23' => '3', 'k2b_rincian_awal_24' => '-6',
+                        'k2b_rincian_hasil_21' => '0', 'k2b_rincian_hasil_22' => '1', 'k2b_rincian_hasil_23' => '-4', 'k2b_rincian_hasil_24' => '8',
+                        'k2b_11' => '1', 'k2b_12' => '2', 'k2b_13' => '-1', 'k2b_14' => '5',
+                        'k2b_21' => '0', 'k2b_22' => '1', 'k2b_23' => '-4', 'k2b_24' => '8',
+                        'k2b_31' => '-2', 'k2b_32' => '1', 'k2b_33' => '4', 'k2b_34' => '8',
+                    ], 'Kalikan seluruh elemen Baris-2 dengan -4/3.'),
+
+                    'k3a_i' => $question(['2', 'baris 2', 'baris ke-2'], '2', 'Elemen 3 yang ingin dinolkan berada pada Baris-2.'),
+                    'k3a_j' => $question(['1', 'baris 1', 'baris ke-1'], '1', 'Gunakan Baris-1 sebagai baris acuan.'),
+                    'k3a_k' => $question(['-3'], '-3', 'Lawan dari 3 adalah -3.'),
+                    'k3a_notasi' => $question(
+                        ['b2←-3b1+b2', 'b2<--3b1+b2', 'b_2←-3b_1+b_2', 'b_2<--3b_1+b_2'],
+                        'B2 ← -3B1 + B2',
+                        'Gunakan -3B1 lalu tambahkan ke B2.'
+                    ),
+                    ...$valueQuestions([
+                        'k3a_rincian_acuan_11' => '1', 'k3a_rincian_acuan_12' => '4', 'k3a_rincian_acuan_13' => '7',
+                        'k3a_rincian_target_21' => '3', 'k3a_rincian_target_22' => '-2', 'k3a_rincian_target_23' => '5',
+                        'k3a_rincian_kali_21' => '-3', 'k3a_rincian_kali_22' => '-12', 'k3a_rincian_kali_23' => '-21',
+                        'k3a_rincian_jumlah_target_21' => '3', 'k3a_rincian_jumlah_target_22' => '-2', 'k3a_rincian_jumlah_target_23' => '5',
+                        'k3a_rincian_hasil_21' => '0', 'k3a_rincian_hasil_22' => '-14', 'k3a_rincian_hasil_23' => '-16',
+                        'k3a_11' => '1', 'k3a_12' => '4', 'k3a_13' => '7',
+                        'k3a_21' => '0', 'k3a_22' => '-14', 'k3a_23' => '-16',
+                    ], 'Gunakan hasil operasi -3B1 + B2 pada setiap elemen Baris-2.'),
+
+                    'k3b_i' => $question(['2', 'baris 2', 'baris ke-2'], '2', 'Elemen -2/3 yang ingin dinolkan berada pada Baris-2.'),
+                    'k3b_j' => $question(['1', 'baris 1', 'baris ke-1'], '1', 'Gunakan Baris-1 sebagai baris acuan.'),
+                    'k3b_k' => $question(['2/3', '2 per 3'], '2/3', 'Lawan dari -2/3 adalah 2/3.'),
+                    'k3b_notasi' => $question(
+                        ['b2←2/3b1+b2', 'b2<-2/3b1+b2', 'b_2←2/3b_1+b_2', 'b_2<-2/3b_1+b_2'],
+                        'B2 ← 2/3 B1 + B2',
+                        'Gunakan 2/3B1 lalu tambahkan ke B2.'
+                    ),
+                    ...$valueQuestions([
+                        'k3b_rincian_acuan_11' => '1', 'k3b_rincian_acuan_12' => '6', 'k3b_rincian_acuan_13' => '-3',
+                        'k3b_rincian_target_21' => '-2/3', 'k3b_rincian_target_22' => '5', 'k3b_rincian_target_23' => '4',
+                        'k3b_rincian_kali_21' => '2/3', 'k3b_rincian_kali_22' => '4', 'k3b_rincian_kali_23' => '-2',
+                        'k3b_rincian_jumlah_target_21' => '-2/3', 'k3b_rincian_jumlah_target_22' => '5', 'k3b_rincian_jumlah_target_23' => '4',
+                        'k3b_rincian_hasil_21' => '0', 'k3b_rincian_hasil_22' => '9', 'k3b_rincian_hasil_23' => '2',
+                        'k3b_11' => '1', 'k3b_12' => '6', 'k3b_13' => '-3',
+                        'k3b_21' => '0', 'k3b_22' => '9', 'k3b_23' => '2',
+                    ], 'Gunakan hasil operasi 2/3B1 + B2 pada setiap elemen Baris-2.'),
+                ],
+            ],
+
+            default => null,
+        };
+    }
+
+
+
+    /* SUBBAB_3_1_ESELON_BARIS_V1 */
+    private function getSubbab31PracticeDefinition(string $practiceKey): ?array
+    {
+        return match ($practiceKey) {
+            'aktivitas-3-1-eselon-baris' => [
+                'title' => 'Aktivitas 3.1 - Uji Visual Eselon Baris',
+                'type' => 'aktivitas',
+                'max_score' => 100,
+                'groups' => [
+                    'matrix_a' => [
+                        'number' => 1,
+                        'fields' => ['matrix_a'],
+                        'points' => 20,
+                    ],
+                    'matrix_b' => [
+                        'number' => 2,
+                        'fields' => ['matrix_b'],
+                        'points' => 20,
+                    ],
+                    'matrix_c' => [
+                        'number' => 3,
+                        'fields' => ['matrix_c'],
+                        'points' => 20,
+                    ],
+                    'matrix_d' => [
+                        'number' => 4,
+                        'fields' => ['matrix_d'],
+                        'points' => 20,
+                    ],
+                    'matrix_e' => [
+                        'number' => 5,
+                        'fields' => ['matrix_e'],
+                        'points' => 20,
+                    ],
+                ],
+                'questions' => [
+                    'matrix_a' => [
+                        'accepted_answers' => ['eselon'],
+                        'display_answer' => 'Zona Matriks Eselon Baris',
+                        'feedback_correct' => 'Benar. Matriks A memiliki 1 utama yang membentuk pola tangga ke kanan.',
+                        'feedback_wrong' => 'Periksa kembali 1 utama pada setiap baris dan pola posisi pivot dari atas ke bawah.',
+                    ],
+                    'matrix_b' => [
+                        'accepted_answers' => ['bukan'],
+                        'display_answer' => 'Zona Bukan Eselon Baris',
+                        'feedback_correct' => 'Benar. Posisi 1 utama pada baris ketiga bergeser ke kiri dari baris sebelumnya.',
+                        'feedback_wrong' => 'Amati posisi 1 utama pada baris kedua dan ketiga. Posisi pivot tidak membentuk pola tangga ke kanan.',
+                    ],
+                    'matrix_c' => [
+                        'accepted_answers' => ['bukan'],
+                        'display_answer' => 'Zona Bukan Eselon Baris',
+                        'feedback_correct' => 'Benar. Bilangan tak nol pertama pada baris kedua adalah 2, bukan 1 utama.',
+                        'feedback_wrong' => 'Periksa nilai bilangan tak nol pertama pada setiap baris yang tidak seluruhnya nol.',
+                    ],
+                    'matrix_d' => [
+                        'accepted_answers' => ['eselon'],
+                        'display_answer' => 'Zona Matriks Eselon Baris',
+                        'feedback_correct' => 'Benar. Matriks D memiliki pola pivot yang tepat dan baris nol berada di bagian bawah.',
+                        'feedback_wrong' => 'Periksa urutan pivot dan posisi baris nol pada matriks ini.',
+                    ],
+                    'matrix_e' => [
+                        'accepted_answers' => ['bukan'],
+                        'display_answer' => 'Zona Bukan Eselon Baris',
+                        'feedback_correct' => 'Benar. 1 utama pada baris kedua berada lebih ke kiri daripada 1 utama pada baris pertama.',
+                        'feedback_wrong' => 'Bandingkan posisi 1 utama pada Baris-1 dan Baris-2. Pivot baris bawah harus bergeser ke kanan.',
+                    ],
+                ],
+            ],
+
+            default => null,
+        };
+    }
+
+
+    /**
+     * SUBBAB_3_2_SIMULASI_ESELON_BARIS_KEPUTUSAN_V3
+     */
+    private function getSubbab32PracticeDefinition(string $practiceKey): ?array
+    {
+        $operationQuestion = static function (
+            string $target,
+            array $expressions,
+            string $displayAnswer,
+            string $feedbackWrong
+        ): array {
+            $arrows = ['\leftarrow', '\gets', '←', '<-'];
+            $acceptedAnswers = [];
+
+            foreach ($expressions as $expression) {
+                foreach ($arrows as $arrow) {
+                    $acceptedAnswers[] = "{$target} {$arrow} {$expression}";
+                }
+            }
+
+            return [
+                'accepted_answers' => array_values(array_unique($acceptedAnswers)),
+                'display_answer' => $displayAnswer,
+                'feedback_correct' => 'Benar. Notasi operasi yang digunakan sudah sesuai dengan target eliminasi.',
+                'feedback_wrong' => $feedbackWrong,
+            ];
+        };
+
+        $valueAnswers = static function (string $value): array {
+            return match ($value) {
+                '1/3' => ['1/3', '1 per 3', '\frac{1}{3}', '\dfrac{1}{3}'],
+                '-1/3' => ['-1/3', '-1 per 3', '-\frac{1}{3}', '-\dfrac{1}{3}'],
+                '5/3' => ['5/3', '5 per 3', '\frac{5}{3}', '\dfrac{5}{3}'],
+                default => [$value],
+            };
+        };
+
+        $valueQuestions = static function (array $values, string $feedbackWrong) use ($valueAnswers): array {
+            $questions = [];
+
+            foreach ($values as $field => $value) {
+                $questions[$field] = [
+                    'accepted_answers' => $valueAnswers((string) $value),
+                    'display_answer' => (string) $value,
+                    'feedback_correct' => 'Benar.',
+                    'feedback_wrong' => $feedbackWrong,
+                ];
+            }
+
+            return $questions;
+        };
+
+        $decisionQuestion = static function (
+            string $correctAnswer,
+            string $feedbackCorrect,
+            string $feedbackWrong
+        ): array {
+            return [
+                'accepted_answers' => [$correctAnswer],
+                'display_answer' => strtoupper($correctAnswer),
+                'feedback_correct' => $feedbackCorrect,
+                'feedback_wrong' => $feedbackWrong,
+            ];
+        };
+
+        return match ($practiceKey) {
+            'contoh-simulasi-3-2-eselon-baris' => [
+                'title' => 'Contoh Simulasi 3.2 - Mengubah Matriks Menjadi Eselon Baris',
+                'type' => 'contoh_simulasi',
+                'max_score' => 0,
+                'definition_version' => 'subbab-3-2-keputusan-v3',
+                'groups' => [
+                    'fase_1' => [
+                        'number' => 1,
+                        'fields' => [
+                            'fase1_q1_pivot',
+                            'fase1_q1_baris2',
+                            'fase1_q1_baris3',
+                            'fase1_q1_baris4',
+
+                            'fase1_target1a_notasi', 'fase1_target1a_k',
+                            'fase1_target1a_produk_21', 'fase1_target1a_produk_22', 'fase1_target1a_produk_23', 'fase1_target1a_produk_24', 'fase1_target1a_produk_25',
+                            'fase1_target1a_hasil_21', 'fase1_target1a_hasil_22', 'fase1_target1a_hasil_23', 'fase1_target1a_hasil_24', 'fase1_target1a_hasil_25',
+
+                            'fase1_target1b_notasi', 'fase1_target1b_k',
+                            'fase1_target1b_produk_31', 'fase1_target1b_produk_32', 'fase1_target1b_produk_33', 'fase1_target1b_produk_34', 'fase1_target1b_produk_35',
+                            'fase1_target1b_hasil_31', 'fase1_target1b_hasil_32', 'fase1_target1b_hasil_33', 'fase1_target1b_hasil_34', 'fase1_target1b_hasil_35',
+
+                            'fase1_target1c_notasi', 'fase1_target1c_k',
+                            'fase1_target1c_produk_41', 'fase1_target1c_produk_42', 'fase1_target1c_produk_43', 'fase1_target1c_produk_44', 'fase1_target1c_produk_45',
+                            'fase1_target1c_hasil_41', 'fase1_target1c_hasil_42', 'fase1_target1c_hasil_43', 'fase1_target1c_hasil_44', 'fase1_target1c_hasil_45',
+                        ],
+                        'points' => 0,
+                    ],
+                    'fase_2' => [
+                        'number' => 2,
+                        'fields' => [
+                            'fase2_q1_pivot',
+                            'fase2_q2_baris3',
+                            'fase2_q3_baris4',
+
+                            'fase2_pivot_notasi',
+                            'fase2_pivot_hasil_21', 'fase2_pivot_hasil_22', 'fase2_pivot_hasil_23', 'fase2_pivot_hasil_24', 'fase2_pivot_hasil_25',
+
+                            'fase2_target2a_notasi', 'fase2_target2a_k',
+                            'fase2_target2a_produk_31', 'fase2_target2a_produk_32', 'fase2_target2a_produk_33', 'fase2_target2a_produk_34', 'fase2_target2a_produk_35',
+                            'fase2_target2a_hasil_31', 'fase2_target2a_hasil_32', 'fase2_target2a_hasil_33', 'fase2_target2a_hasil_34', 'fase2_target2a_hasil_35',
+                        ],
+                        'points' => 0,
+                    ],
+                    'fase_3' => [
+                        'number' => 3,
+                        'fields' => [
+                            'fase3_q1_pivot',
+                            'fase3_q2_baris4',
+
+                            'fase3_pivot_notasi',
+                            'fase3_pivot_hasil_31', 'fase3_pivot_hasil_32', 'fase3_pivot_hasil_33', 'fase3_pivot_hasil_34', 'fase3_pivot_hasil_35',
+
+                            'fase3_target3a_notasi', 'fase3_target3a_k',
+                            'fase3_target3a_produk_41', 'fase3_target3a_produk_42', 'fase3_target3a_produk_43', 'fase3_target3a_produk_44', 'fase3_target3a_produk_45',
+                            'fase3_target3a_hasil_41', 'fase3_target3a_hasil_42', 'fase3_target3a_hasil_43', 'fase3_target3a_hasil_44', 'fase3_target3a_hasil_45',
+                        ],
+                        'points' => 0,
+                    ],
+                    'fase_4' => [
+                        'number' => 4,
+                        'fields' => [
+                            'fase4_q1_pivot',
+
+                            'fase4_pivot_notasi',
+                            'fase4_pivot_hasil_41', 'fase4_pivot_hasil_42', 'fase4_pivot_hasil_43', 'fase4_pivot_hasil_44', 'fase4_pivot_hasil_45',
+                        ],
+                        'points' => 0,
+                    ],
+                ],
+                'questions' => [
+                    'fase1_q1_pivot' => $decisionQuestion(
+                        'ya',
+                        'Benar. Elemen utama pada Baris-1 Kolom-1 sudah bernilai 1.',
+                        'Jawaban yang benar adalah YA. Elemen utama pada Baris-1 Kolom-1 sudah bernilai 1.'
+                    ),
+                    'fase1_q1_baris2' => $decisionQuestion(
+                        'tidak',
+                        'Benar. Elemen pada Baris-2 Kolom-1 bernilai -1 sehingga belum bernilai 0.',
+                        'Jawaban yang benar adalah TIDAK. Elemen pada Baris-2 Kolom-1 bernilai -1 sehingga perlu dieliminasi.'
+                    ),
+                    'fase1_q1_baris3' => $decisionQuestion(
+                        'tidak',
+                        'Benar. Elemen pada Baris-3 Kolom-1 bernilai 2 sehingga belum bernilai 0.',
+                        'Jawaban yang benar adalah TIDAK. Elemen pada Baris-3 Kolom-1 bernilai 2 sehingga perlu dieliminasi.'
+                    ),
+                    'fase1_q1_baris4' => $decisionQuestion(
+                        'tidak',
+                        'Benar. Elemen pada Baris-4 Kolom-1 bernilai 1 sehingga belum bernilai 0.',
+                        'Jawaban yang benar adalah TIDAK. Elemen pada Baris-4 Kolom-1 bernilai 1 sehingga perlu dieliminasi.'
+                    ),
+
+                    'fase2_q1_pivot' => $decisionQuestion(
+                        'tidak',
+                        'Benar. Elemen utama pada Baris-2 Kolom-2 bernilai 3, sehingga harus diubah menjadi 1.',
+                        'Jawaban yang benar adalah TIDAK. Elemen utama pada Baris-2 Kolom-2 masih bernilai 3.'
+                    ),
+                    'fase2_q2_baris3' => $decisionQuestion(
+                        'tidak',
+                        'Benar. Elemen pada Baris-3 Kolom-2 bernilai -1 sehingga belum bernilai 0.',
+                        'Jawaban yang benar adalah TIDAK. Elemen pada Baris-3 Kolom-2 bernilai -1 sehingga perlu dieliminasi.'
+                    ),
+                    'fase2_q3_baris4' => $decisionQuestion(
+                        'ya',
+                        'Benar. Elemen pada Baris-4 Kolom-2 sudah bernilai 0.',
+                        'Jawaban yang benar adalah YA. Elemen pada Baris-4 Kolom-2 sudah bernilai 0 sehingga tidak perlu dieliminasi.'
+                    ),
+
+                    'fase3_q1_pivot' => $decisionQuestion(
+                        'tidak',
+                        'Benar. Elemen utama pada Baris-3 Kolom-3 bernilai -1, sehingga harus diubah menjadi 1.',
+                        'Jawaban yang benar adalah TIDAK. Elemen utama pada Baris-3 Kolom-3 masih bernilai -1.'
+                    ),
+                    'fase3_q2_baris4' => $decisionQuestion(
+                        'tidak',
+                        'Benar. Elemen pada Baris-4 Kolom-3 bernilai -1 sehingga belum bernilai 0.',
+                        'Jawaban yang benar adalah TIDAK. Elemen pada Baris-4 Kolom-3 bernilai -1 sehingga perlu dieliminasi.'
+                    ),
+
+                    'fase4_q1_pivot' => $decisionQuestion(
+                        'tidak',
+                        'Benar. Elemen utama pada Baris-4 Kolom-4 bernilai -3, sehingga harus diubah menjadi 1.',
+                        'Jawaban yang benar adalah TIDAK. Elemen utama pada Baris-4 Kolom-4 masih bernilai -3.'
+                    ),
+
+                    'fase1_target1a_notasi' => $operationQuestion(
+                        'B_2',
+                        ['B_2 + B_1', 'B_1 + B_2', '1B_1 + B_2'],
+                        'B_2 \leftarrow B_2 + B_1',
+                        'Gunakan Baris-1 untuk menghilangkan elemen -1 pada Baris-2 Kolom-1.'
+                    ),
+                    ...$valueQuestions([
+                        'fase1_target1a_k' => '1',
+                        'fase1_target1a_produk_21' => '1',
+                        'fase1_target1a_produk_22' => '1',
+                        'fase1_target1a_produk_23' => '2',
+                        'fase1_target1a_produk_24' => '-1',
+                        'fase1_target1a_produk_25' => '5',
+                        'fase1_target1a_hasil_21' => '0',
+                        'fase1_target1a_hasil_22' => '3',
+                        'fase1_target1a_hasil_23' => '3',
+                        'fase1_target1a_hasil_24' => '0',
+                        'fase1_target1a_hasil_25' => '15',
+                    ], 'Periksa kembali hasil operasi B2 ← B1 + B2 pada setiap elemen Baris-2.'),
+
+                    'fase1_target1b_notasi' => $operationQuestion(
+                        'B_3',
+                        ['B_3 - 2B_1', '-2B_1 + B_3', 'B_3 + (-2)B_1'],
+                        'B_3 \leftarrow B_3 - 2B_1',
+                        'Gunakan kelipatan Baris-1 yang membuat 2 pada Baris-3 Kolom-1 menjadi 0.'
+                    ),
+                    ...$valueQuestions([
+                        'fase1_target1b_k' => '-2',
+                        'fase1_target1b_produk_31' => '-2',
+                        'fase1_target1b_produk_32' => '-2',
+                        'fase1_target1b_produk_33' => '-4',
+                        'fase1_target1b_produk_34' => '2',
+                        'fase1_target1b_produk_35' => '-10',
+                        'fase1_target1b_hasil_31' => '0',
+                        'fase1_target1b_hasil_32' => '-1',
+                        'fase1_target1b_hasil_33' => '-2',
+                        'fase1_target1b_hasil_34' => '5',
+                        'fase1_target1b_hasil_35' => '2',
+                    ], 'Periksa kembali hasil operasi B3 ← -2B1 + B3 pada setiap elemen Baris-3.'),
+
+                    'fase1_target1c_notasi' => $operationQuestion(
+                        'B_4',
+                        ['B_4 - B_1', '-B_1 + B_4', 'B_4 + (-1)B_1'],
+                        'B_4 \leftarrow B_4 - B_1',
+                        'Gunakan Baris-1 untuk menghilangkan elemen 1 pada Baris-4 Kolom-1.'
+                    ),
+                    ...$valueQuestions([
+                        'fase1_target1c_k' => '-1',
+                        'fase1_target1c_produk_41' => '-1',
+                        'fase1_target1c_produk_42' => '-1',
+                        'fase1_target1c_produk_43' => '-2',
+                        'fase1_target1c_produk_44' => '1',
+                        'fase1_target1c_produk_45' => '-5',
+                        'fase1_target1c_hasil_41' => '0',
+                        'fase1_target1c_hasil_42' => '0',
+                        'fase1_target1c_hasil_43' => '-1',
+                        'fase1_target1c_hasil_44' => '2',
+                        'fase1_target1c_hasil_45' => '2',
+                    ], 'Periksa kembali hasil operasi B4 ← -B1 + B4 pada setiap elemen Baris-4.'),
+
+                    'fase2_pivot_notasi' => $operationQuestion(
+                        'B_2',
+                        ['\frac{1}{3}B_2', '1/3B_2', '(1/3)B_2', 'B_2/3'],
+                        'B_2 \leftarrow \frac{1}{3}B_2',
+                        'Gunakan kebalikan perkalian dari 3 agar elemen utama Baris-2 menjadi 1.'
+                    ),
+                    ...$valueQuestions([
+                        'fase2_pivot_hasil_21' => '0',
+                        'fase2_pivot_hasil_22' => '1',
+                        'fase2_pivot_hasil_23' => '1',
+                        'fase2_pivot_hasil_24' => '0',
+                        'fase2_pivot_hasil_25' => '5',
+                    ], 'Kalikan seluruh elemen Baris-2 dengan 1/3.'),
+
+                    'fase2_target2a_notasi' => $operationQuestion(
+                        'B_3',
+                        ['B_3 + B_2', 'B_2 + B_3', '1B_2 + B_3'],
+                        'B_3 \leftarrow B_3 + B_2',
+                        'Gunakan Baris-2 untuk menghilangkan elemen -1 pada Baris-3 Kolom-2.'
+                    ),
+                    ...$valueQuestions([
+                        'fase2_target2a_k' => '1',
+                        'fase2_target2a_produk_31' => '0',
+                        'fase2_target2a_produk_32' => '1',
+                        'fase2_target2a_produk_33' => '1',
+                        'fase2_target2a_produk_34' => '0',
+                        'fase2_target2a_produk_35' => '5',
+                        'fase2_target2a_hasil_31' => '0',
+                        'fase2_target2a_hasil_32' => '0',
+                        'fase2_target2a_hasil_33' => '-1',
+                        'fase2_target2a_hasil_34' => '5',
+                        'fase2_target2a_hasil_35' => '7',
+                    ], 'Periksa kembali hasil operasi B3 ← B2 + B3 pada setiap elemen Baris-3.'),
+
+                    'fase3_pivot_notasi' => $operationQuestion(
+                        'B_3',
+                        ['-B_3', '(-1)B_3', '-1B_3'],
+                        'B_3 \leftarrow -B_3',
+                        'Kalikan Baris-3 dengan -1 agar elemen utama -1 menjadi 1.'
+                    ),
+                    ...$valueQuestions([
+                        'fase3_pivot_hasil_31' => '0',
+                        'fase3_pivot_hasil_32' => '0',
+                        'fase3_pivot_hasil_33' => '1',
+                        'fase3_pivot_hasil_34' => '-5',
+                        'fase3_pivot_hasil_35' => '-7',
+                    ], 'Kalikan seluruh elemen Baris-3 dengan -1.'),
+
+                    'fase3_target3a_notasi' => $operationQuestion(
+                        'B_4',
+                        ['B_4 + B_3', 'B_3 + B_4', '1B_3 + B_4'],
+                        'B_4 \leftarrow B_4 + B_3',
+                        'Gunakan Baris-3 untuk menghilangkan elemen -1 pada Baris-4 Kolom-3.'
+                    ),
+                    ...$valueQuestions([
+                        'fase3_target3a_k' => '1',
+                        'fase3_target3a_produk_41' => '0',
+                        'fase3_target3a_produk_42' => '0',
+                        'fase3_target3a_produk_43' => '1',
+                        'fase3_target3a_produk_44' => '-5',
+                        'fase3_target3a_produk_45' => '-7',
+                        'fase3_target3a_hasil_41' => '0',
+                        'fase3_target3a_hasil_42' => '0',
+                        'fase3_target3a_hasil_43' => '0',
+                        'fase3_target3a_hasil_44' => '-3',
+                        'fase3_target3a_hasil_45' => '-5',
+                    ], 'Periksa kembali hasil operasi B4 ← B3 + B4 pada setiap elemen Baris-4.'),
+
+                    'fase4_pivot_notasi' => $operationQuestion(
+                        'B_4',
+                        ['-\frac{1}{3}B_4', '-1/3B_4', '(-1/3)B_4', 'B_4/(-3)'],
+                        'B_4 \leftarrow -\frac{1}{3}B_4',
+                        'Gunakan kebalikan perkalian dari -3 agar elemen utama Baris-4 menjadi 1.'
+                    ),
+                    ...$valueQuestions([
+                        'fase4_pivot_hasil_41' => '0',
+                        'fase4_pivot_hasil_42' => '0',
+                        'fase4_pivot_hasil_43' => '0',
+                        'fase4_pivot_hasil_44' => '1',
+                        'fase4_pivot_hasil_45' => '5/3',
+                    ], 'Kalikan seluruh elemen Baris-4 dengan -1/3.'),
+                ],
+            ],
+            default => null,
+        };
     }
 }

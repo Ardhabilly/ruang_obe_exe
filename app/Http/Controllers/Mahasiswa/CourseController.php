@@ -318,6 +318,9 @@ class CourseController extends Controller
             'contoh-simulasi-2-2-penjumlahan-a',
             'contoh-simulasi-2-2-penjumlahan-b',
             'aktivitas-2-1-obe',
+            // SUBBAB_3_1_ESELON_BARIS_V1
+            'aktivitas-3-1-eselon-baris',
+            'contoh-simulasi-3-2-eselon-baris',
         ];
 
         if (! in_array($submission->practice_key, $componentAttemptPracticeKeys, true)) {
@@ -358,6 +361,10 @@ class CourseController extends Controller
             ],
 
 
+            /* SUBBAB_3_1_ESELON_BARIS_V1 */
+            'algoritma-syarat-matriks-eselon-baris' => [
+                'aktivitas-3-1-eselon-baris' => 'Aktivitas 3.1 - Uji Visual Eselon Baris',
+            ],
             'jenis-jenis-operasi-baris-elementer' => [
                 'contoh-simulasi-2-2-pertukaran' => 'Contoh Simulasi Pertukaran Dua Baris',
                 'contoh-simulasi-2-2-perkalian-a' => 'Contoh Simulasi Perkalian Baris',
@@ -365,6 +372,10 @@ class CourseController extends Controller
                 'contoh-simulasi-2-2-penjumlahan-a' => 'Contoh Simulasi Penjumlahan Kelipatan Baris',
                 'contoh-simulasi-2-2-penjumlahan-b' => 'Contoh Simulasi Penjumlahan Kelipatan dengan Pecahan',
                 'aktivitas-2-1-obe' => 'Aktivitas 2.1 - Latihan Mandiri Operasi Baris Elementer',
+            ],
+
+            'simulasi-mengubah-matriks-menjadi-eselon-baris' => [
+                'contoh-simulasi-3-2-eselon-baris' => 'Contoh Simulasi 3.2 - Mengubah Matriks Menjadi Eselon Baris',
             ],
             default => [],
         };
