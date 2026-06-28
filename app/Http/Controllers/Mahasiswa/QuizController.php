@@ -562,6 +562,19 @@ class QuizController extends Controller
                 $isCorrect = $operationCorrect && $matrixCorrect;
                 break;
 
+            case 'gauss_jordan':
+                $matrixCorrect = $this->compareGaussJordanMatrix(
+                    $payload['reduced_matrix'] ?? [],
+                    $question->answer_key['rref_matrix'] ?? []
+                );
+
+                $finalCorrect = $this->compareGaussFinalAnswers(
+                    $payload['final'] ?? [],
+                    $question->accepted_answers ?? []
+                );
+
+                $isCorrect = $matrixCorrect && $finalCorrect;
+                break;
             case 'gauss_elimination':
                 $matrixCorrect = $this->isValidGaussEchelonMatrix(
                     $payload['echelon_matrix'] ?? [],
@@ -612,7 +625,7 @@ class QuizController extends Controller
             'canvas_final_answer' => $this->hasAnyValue($payload['final'] ?? []),
             'obe_matrix_operation' => trim((string) ($payload['operation'] ?? '')) !== ''
                 && $this->hasAnyValue($payload['result_matrix'] ?? []),
-            'gauss_elimination' => $this->hasCompleteGaussResponse($question, $payload),            'matrix', 'augmented_matrix' => $this->hasAnyValue($payload['matrix'] ?? []),
+            'gauss_elimination', 'gauss_jordan' => $this->hasCompleteGaussResponse($question, $payload),            'matrix', 'augmented_matrix' => $this->hasAnyValue($payload['matrix'] ?? []),
             'matrix_equation' => $this->hasAnyValue($payload['A'] ?? []) || $this->hasAnyValue($payload['b'] ?? []),
             default => false,
         };
@@ -666,8 +679,10 @@ class QuizController extends Controller
         $data = $question->question_data ?? [];
         $rows = (int) ($data['rows'] ?? 0);
         $columns = (int) ($data['columns'] ?? 0);
-        $matrix = $payload['echelon_matrix'] ?? [];
-        $final = $payload['final'] ?? [];
+        $matrixKey = $question->question_type === 'gauss_jordan'
+            ? 'reduced_matrix'
+            : 'echelon_matrix';
+        $matrix = $payload[$matrixKey] ?? [];        $final = $payload['final'] ?? [];
         $finalFields = $data['final_fields'] ?? array_keys($question->accepted_answers ?? []);
 
         if ($rows < 1 || $columns < 1 || ! is_array($matrix) || ! is_array($final)) {
@@ -724,6 +739,21 @@ class QuizController extends Controller
         return true;
     }
 
+    private function compareGaussJordanMatrix(array $studentMatrix, $expectedMatrix): bool
+    {
+        if (! is_array($expectedMatrix) || empty($expectedMatrix)) {
+            return false;
+        }
+
+        $student = $this->toNumericMatrix($studentMatrix, $expectedMatrix);
+        $expected = $this->toNumericMatrix($expectedMatrix, $expectedMatrix);
+
+        if ($student === null || $expected === null) {
+            return false;
+        }
+
+        return $this->matricesAreClose($student, $expected);
+    }
     private function isValidGaussEchelonMatrix(array $studentMatrix, $initialMatrix): bool
     {
         if (! is_array($initialMatrix) || empty($initialMatrix)) {

@@ -190,11 +190,11 @@
                         && Array.from(obeMatrixInputs).every(input => input.value.trim() !== '');
                 }
 
-                const gaussEchelonInputs = card.querySelectorAll('[data-gauss-echelon-input]');
+                const gaussMatrixInputs = card.querySelectorAll('[data-gauss-matrix-input]');
                 const gaussFinalInputs = card.querySelectorAll('[data-gauss-final-input]');
 
-                if (gaussEchelonInputs.length > 0 && gaussFinalInputs.length > 0) {
-                    return Array.from(gaussEchelonInputs).every(input => input.value.trim() !== '')
+                if (gaussMatrixInputs.length > 0 && gaussFinalInputs.length > 0) {
+                    return Array.from(gaussMatrixInputs).every(input => input.value.trim() !== '')
                         && Array.from(gaussFinalInputs).every(input => input.value.trim() !== '');
                 }
                 const finalInputs = card.querySelectorAll('[data-final-answer-input]');
@@ -670,7 +670,7 @@
                                                 </div>
                                             </div>
                                         </div>
-                                    @elseif ($question->question_type === 'gauss_elimination')
+                                    @elseif (in_array($question->question_type, ['gauss_elimination', 'gauss_jordan']))
                                         @php
                                             $rows = (int) ($data['rows'] ?? 3);
                                             $columns = (int) ($data['columns'] ?? 4);
@@ -678,6 +678,11 @@
                                             $equations = $data['equations'] ?? [];
                                             $finalFields = $data['final_fields'] ?? ['x', 'y', 'z'];
                                             $finalLabels = $data['final_labels'] ?? [];
+                                            $isGaussJordan = $question->question_type === 'gauss_jordan';
+                                            $matrixField = $isGaussJordan ? 'reduced_matrix' : 'echelon_matrix';
+                                            $matrixLabel = $isGaussJordan
+                                                ? 'Bentuk Eselon Baris Tereduksi'
+                                                : 'Bentuk Eselon Baris';
                                         @endphp
 
                                         <div class="space-y-4 pb-3">
@@ -763,7 +768,7 @@
                                                 <div class="space-y-3 pb-2">
                                                     <div class="overflow-x-auto rounded-2xl border border-slate-300 bg-slate-50 p-4">
                                                         <p class="mb-3 text-center text-sm font-black text-slate-700">
-                                                            Bentuk Eselon Baris
+                                                            {{ $matrixLabel }}
                                                         </p>
 
                                                         <div class="mx-auto grid w-max gap-2" style="grid-template-columns: repeat({{ $columns }}, 58px);">
@@ -771,10 +776,10 @@
                                                                 @for ($c = 0; $c < $columns; $c++)
                                                                     <input
                                                                         type="text"
-                                                                        name="responses[{{ $question->id }}][echelon_matrix][{{ $r }}][{{ $c }}]"
-                                                                        value="{{ $savedValue['echelon_matrix'][$r][$c] ?? '' }}"
+                                                                        name="responses[{{ $question->id }}][{{ $matrixField }}][{{ $r }}][{{ $c }}]"
+                                                                        value="{{ $savedValue[$matrixField][$r][$c] ?? '' }}"
                                                                         autocomplete="off"
-                                                                        data-gauss-echelon-input
+                                                                        data-gauss-matrix-input
                                                                         class="h-11 rounded-xl border-slate-300 bg-white text-center font-bold text-slate-900 focus:border-cyan-500 focus:ring-cyan-500 {{ ($c + 1) === $separatorBefore ? 'border-l-4 border-l-slate-700' : '' }}">
                                                                 @endfor
                                                             @endfor
