@@ -70,7 +70,32 @@
                 ['label' => 'x', 'answer' => ''],
             ];
         }
-    @endphp
+
+        $matrixRows = (int) old('matrix_rows', $data['rows'] ?? 3);
+        $matrixColumns = (int) old('matrix_columns', $data['columns'] ?? 3);
+        $matrixSeparatorBeforeColumn = (int) old(
+            'matrix_separator_before_column',
+            $data['separator_before_column'] ?? $matrixColumns
+        );
+
+        if ($matrixRows < 1 || $matrixRows > 6) {
+            $matrixRows = 3;
+        }
+
+        if ($matrixColumns < 1 || $matrixColumns > 8) {
+            $matrixColumns = 3;
+        }
+
+        if ($matrixSeparatorBeforeColumn < 2 || $matrixSeparatorBeforeColumn > $matrixColumns) {
+            $matrixSeparatorBeforeColumn = $matrixColumns;
+        }
+
+        $matrixLabel = old('matrix_label', $data['label'] ?? 'A');
+        $matrixAnswers = old('matrix_answers', $answerKey['matrix'] ?? []);
+
+        if (! is_array($matrixAnswers)) {
+            $matrixAnswers = [];
+        }    @endphp
 
     <div class="px-4 py-8 sm:px-6 lg:px-8">
         <div class="mx-auto max-w-5xl space-y-6">
@@ -100,7 +125,7 @@
                     </h1>
 
                     <p class="mt-2 text-sm leading-6 text-slate-400">
-                        Buat soal isian, notasi matematika, nilai variabel, atau pilihan lebih dari satu jawaban.
+                        Buat soal isian, notasi matematika, nilai variabel, matriks, atau pilihan lebih dari satu jawaban.
                     </p>
                 </div>
             </section>
@@ -112,6 +137,23 @@
                 x-data="{
                     questionType: @js($questionType),
                     maximumVariables: 8,
+                    matrixRows: @js($matrixRows),
+                    matrixColumns: @js($matrixColumns),
+                    matrixSeparatorBeforeColumn: @js($matrixSeparatorBeforeColumn),
+
+                    ensureMatrixSettings() {
+                        this.matrixRows = Math.min(6, Math.max(1, Number.parseInt(this.matrixRows, 10) || 1));
+                        this.matrixColumns = Math.min(8, Math.max(1, Number.parseInt(this.matrixColumns, 10) || 1));
+
+                        if (this.questionType === 'augmented_matrix' && this.matrixColumns < 2) {
+                            this.matrixColumns = 2;
+                        }
+
+                        this.matrixSeparatorBeforeColumn = Math.min(
+                            this.matrixColumns,
+                            Math.max(2, Number.parseInt(this.matrixSeparatorBeforeColumn, 10) || this.matrixColumns)
+                        );
+                    },
                     variableDefinitions: @js(array_values($variableDefinitions)),
                     variableCount: {{ min(max(count($variableDefinitions), 1), 8) }},
                     defaultLabels: ['x', 'y', 'z', 'a', 'b', 'c', 'd', 'e'],
@@ -182,7 +224,7 @@
                         Tipe Soal <span class="text-cyan-200">*</span>
                     </p>
 
-                    <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                         <label class="cursor-pointer rounded-2xl border p-4 transition"
                                :class="questionType === 'short_text' ? 'border-cyan-300/40 bg-cyan-400/10' : 'border-white/10 bg-slate-950/35 hover:border-white/20'">
                             <input type="radio" name="question_type" value="short_text" x-model="questionType" class="sr-only">
@@ -202,6 +244,20 @@
                             <input type="radio" name="question_type" value="variable_values" x-model="questionType" class="sr-only">
                             <span class="block text-sm font-black text-white">Nilai Variabel</span>
                             <span class="mt-1 block text-xs leading-5 text-slate-400">Tentukan jumlah serta nama variabel sesuai kebutuhan soal.</span>
+                        </label>
+
+                        <label class="cursor-pointer rounded-2xl border p-4 transition"
+                               :class="questionType === 'matrix' ? 'border-cyan-300/40 bg-cyan-400/10' : 'border-white/10 bg-slate-950/35 hover:border-white/20'">
+                            <input type="radio" name="question_type" value="matrix" x-model="questionType" @change="ensureMatrixSettings()" class="sr-only">
+                            <span class="block text-sm font-black text-white">Matriks</span>
+                            <span class="mt-1 block text-xs leading-5 text-slate-400">Mahasiswa melengkapi matriks dengan ukuran yang ditentukan.</span>
+                        </label>
+
+                        <label class="cursor-pointer rounded-2xl border p-4 transition"
+                               :class="questionType === 'augmented_matrix' ? 'border-violet-300/40 bg-violet-400/10' : 'border-white/10 bg-slate-950/35 hover:border-white/20'">
+                            <input type="radio" name="question_type" value="augmented_matrix" x-model="questionType" @change="ensureMatrixSettings()" class="sr-only">
+                            <span class="block text-sm font-black text-white">Matriks Teraugmentasi</span>
+                            <span class="mt-1 block text-xs leading-5 text-slate-400">Matriks dengan garis pemisah antara koefisien dan ruas kanan.</span>
                         </label>
 
                         <label class="cursor-pointer rounded-2xl border p-4 transition"
@@ -292,6 +348,97 @@
                     @enderror
                 </section>
 
+                <section data-matrix-configuration="dynamic" x-show="questionType === 'matrix' || questionType === 'augmented_matrix'" x-transition>
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                        <div>
+                            <p class="text-sm font-black text-white">
+                                Konfigurasi Matriks <span class="text-cyan-200">*</span>
+                            </p>
+                            <p class="mt-1 text-xs leading-5 text-slate-500">
+                                Tentukan ukuran dan seluruh elemen matriks yang menjadi jawaban benar.
+                            </p>
+                        </div>
+
+                        <div class="flex gap-3">
+                            <label class="w-24">
+                                <span class="text-xs font-bold uppercase tracking-wide text-slate-400">Baris</span>
+                                <input type="number" name="matrix_rows" min="1" max="6"
+                                       x-model.number="matrixRows" @change="ensureMatrixSettings()"
+                                       class="mt-2 h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-center text-sm font-black text-white outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                            </label>
+
+                            <label class="w-24">
+                                <span class="text-xs font-bold uppercase tracking-wide text-slate-400">Kolom</span>
+                                <input type="number" name="matrix_columns" min="1" max="8"
+                                       x-model.number="matrixColumns" @change="ensureMatrixSettings()"
+                                       class="mt-2 h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-center text-sm font-black text-white outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                            </label>
+                        </div>
+                    </div>
+
+                    @error('matrix_rows')
+                        <p class="mt-3 text-sm text-red-300">{{ $message }}</p>
+                    @enderror
+
+                    @error('matrix_columns')
+                        <p class="mt-3 text-sm text-red-300">{{ $message }}</p>
+                    @enderror
+
+                    <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                        <label x-show="questionType === 'matrix'" x-transition class="block">
+                            <span class="text-xs font-bold uppercase tracking-wide text-slate-400">Label Matriks</span>
+                            <input type="text" name="matrix_label" value="{{ $matrixLabel }}" maxlength="30"
+                                   placeholder="Contoh: A"
+                                   class="mt-2 h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm font-black text-white placeholder:text-slate-500 outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                        </label>
+
+                        <label x-show="questionType === 'augmented_matrix'" x-transition class="block">
+                            <span class="text-xs font-bold uppercase tracking-wide text-slate-400">Kolom Awal Ruas Kanan</span>
+                            <input type="number" name="matrix_separator_before_column" min="2"
+                                   :max="matrixColumns" x-model.number="matrixSeparatorBeforeColumn"
+                                   @change="ensureMatrixSettings()"
+                                   class="mt-2 h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-center text-sm font-black text-white outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                        </label>
+                    </div>
+
+                    @error('matrix_separator_before_column')
+                        <p class="mt-3 text-sm text-red-300">{{ $message }}</p>
+                    @enderror
+
+                    <div class="mt-5 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/35 p-4">
+                        <div class="flex items-center justify-between gap-3">
+                            <p class="text-sm font-black text-white">Elemen Jawaban Matriks</p>
+                            <span class="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-slate-300">
+                                <span x-text="matrixRows"></span> × <span x-text="matrixColumns"></span>
+                            </span>
+                        </div>
+
+                        <p class="mt-1 text-xs leading-5 text-slate-500">
+                            Masukkan setiap elemen sesuai jawaban yang harus diperoleh mahasiswa.
+                        </p>
+
+                        <div class="mt-4 w-max">
+                            <div class="grid gap-2" :style="'grid-template-columns: repeat(' + matrixColumns + ', 68px)'">
+                                @for ($row = 0; $row < 6; $row++)
+                                    @for ($column = 0; $column < 8; $column++)
+                                        <input type="text"
+                                               x-show="matrixRows > {{ $row }} && matrixColumns > {{ $column }}"
+                                               name="matrix_answers[{{ $row }}][{{ $column }}]"
+                                               value="{{ $matrixAnswers[$row][$column] ?? '' }}"
+                                               autocomplete="off"
+                                               placeholder="0"
+                                               :class="{ 'border-l-4 border-l-violet-300': questionType === 'augmented_matrix' && matrixSeparatorBeforeColumn === {{ $column + 1 }} }"
+                                               class="h-11 rounded-xl border border-white/10 bg-slate-950/60 px-2 text-center font-mono text-sm font-black text-white placeholder:text-slate-600 outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                                    @endfor
+                                @endfor
+                            </div>
+                        </div>
+                    </div>
+
+                    @error('matrix_answers')
+                        <p class="mt-3 text-sm text-red-300">{{ $message }}</p>
+                    @enderror
+                </section>
                 <section x-show="questionType === 'variable_values'" x-transition>
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                         <div>

@@ -19,6 +19,8 @@ class QuizManagementController extends Controller
         'short_text',
         'math_notation',
         'variable_values',
+        'matrix',
+        'augmented_matrix',
         'checkbox',
     ];
 
@@ -284,6 +286,13 @@ class QuizManagementController extends Controller
             'variable_definitions.*' => ['nullable', 'array'],
             'variable_definitions.*.label' => ['nullable', 'string', 'max:60'],
             'variable_definitions.*.answer' => ['nullable', 'string', 'max:100'],
+            'matrix_rows' => ['nullable', 'integer', 'min:1', 'max:6'],
+            'matrix_columns' => ['nullable', 'integer', 'min:1', 'max:8'],
+            'matrix_separator_before_column' => ['nullable', 'integer', 'min:2', 'max:8'],
+            'matrix_label' => ['nullable', 'string', 'max:30'],
+            'matrix_answers' => ['nullable', 'array'],
+            'matrix_answers.*' => ['nullable', 'array'],
+            'matrix_answers.*.*' => ['nullable', 'string', 'max:100'],
             'explanation' => ['nullable', 'string', 'max:2000'],
             'points' => ['required', 'integer', 'min:1', 'max:100'],
             'is_required' => ['nullable', 'boolean'],
@@ -298,6 +307,73 @@ class QuizManagementController extends Controller
             $questionData['equations'] = $equations;
         }
 
+        if (in_array($questionType, ['matrix', 'augmented_matrix'], true)) {
+            $rows = (int) ($validated['matrix_rows'] ?? 0);
+            $columns = (int) ($validated['matrix_columns'] ?? 0);
+
+            if ($rows < 1 || $rows > 6 || $columns < 1 || $columns > 8) {
+                throw ValidationException::withMessages([
+                    'matrix_rows' => 'Ukuran matriks harus terdiri dari 1–6 baris dan 1–8 kolom.',
+                ]);
+            }
+
+            if ($questionType === 'augmented_matrix' && $columns < 2) {
+                throw ValidationException::withMessages([
+                    'matrix_columns' => 'Matriks teraugmentasi memerlukan minimal dua kolom.',
+                ]);
+            }
+
+            $separatorBeforeColumn = $questionType === 'augmented_matrix'
+                ? (int) ($validated['matrix_separator_before_column'] ?? $columns)
+                : null;
+
+            if ($questionType === 'augmented_matrix'
+                && ($separatorBeforeColumn < 2 || $separatorBeforeColumn > $columns)) {
+                throw ValidationException::withMessages([
+                    'matrix_separator_before_column' => 'Kolom awal ruas kanan harus berada pada rentang 2 sampai jumlah kolom matriks.',
+                ]);
+            }
+
+            $matrixInput = $validated['matrix_answers'] ?? [];
+            $matrix = [];
+
+            for ($row = 0; $row < $rows; $row++) {
+                $matrix[$row] = [];
+
+                for ($column = 0; $column < $columns; $column++) {
+                    $value = $this->nullableText($matrixInput[$row][$column] ?? null);
+
+                    if ($value === null) {
+                        throw ValidationException::withMessages([
+                            'matrix_answers.' . $row . '.' . $column => 'Lengkapi seluruh elemen jawaban matriks.',
+                        ]);
+                    }
+
+                    $matrix[$row][$column] = $value;
+                }
+            }
+
+            $matrixData = $questionData;
+            $matrixData['rows'] = $rows;
+            $matrixData['columns'] = $columns;
+
+            if ($questionType === 'augmented_matrix') {
+                $matrixData['separator_before_column'] = $separatorBeforeColumn;
+            } else {
+                $matrixData['label'] = $this->nullableText($validated['matrix_label'] ?? null) ?? 'A';
+            }
+
+            return [
+                'question_text' => trim($validated['question_text']),
+                'question_type' => $questionType,
+                'question_data' => $matrixData,
+                'answer_key' => ['matrix' => $matrix],
+                'accepted_answers' => [],
+                'explanation' => $this->nullableText($validated['explanation'] ?? null),
+                'points' => (int) $validated['points'],
+                'is_required' => $request->boolean('is_required', true),
+            ];
+        }
         if ($questionType === 'variable_values') {
             $definitions = $validated['variable_definitions'] ?? [];
 

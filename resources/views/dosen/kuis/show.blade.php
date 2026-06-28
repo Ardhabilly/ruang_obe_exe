@@ -139,6 +139,8 @@
                             'short_text',
                             'math_notation',
                             'variable_values',
+                            'matrix',
+                            'augmented_matrix',
                             'checkbox',
                         ], true);
                     @endphp
