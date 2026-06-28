@@ -141,6 +141,7 @@
                             'variable_values',
                             'matrix',
                             'augmented_matrix',
+                            'obe_matrix_operation',
                             'checkbox',
                         ], true);
                     @endphp

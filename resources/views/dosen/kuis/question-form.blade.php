@@ -95,6 +95,51 @@
 
         if (! is_array($matrixAnswers)) {
             $matrixAnswers = [];
+        }        $obeRows = (int) old('obe_rows', $data['rows'] ?? 3);
+        $obeColumns = (int) old('obe_columns', $data['columns'] ?? 4);
+        $obeHasSeparator = old('obe_has_separator', $data['has_separator'] ?? isset($data['separator_before_column']));
+        $obeSeparatorBeforeColumn = (int) old(
+            'obe_separator_before_column',
+            $data['separator_before_column'] ?? $obeColumns
+        );
+        $obeInitialMatrix = old('obe_initial_matrix', $data['initial_matrix'] ?? []);
+        $obeResultMatrix = old('obe_result_matrix', $answerKey['matrix'] ?? []);
+
+        $storedObeOperationsLatex = $data['accepted_operations_latex'] ?? [];
+
+        if (! is_array($storedObeOperationsLatex)) {
+            $storedObeOperationsLatex = [];
+        }
+
+        $obeOperationsLatex = old(
+            'obe_operations_latex',
+            ! empty($storedObeOperationsLatex)
+                ? $storedObeOperationsLatex
+                : ($acceptedAnswers ?? [])
+        );
+
+        if (! is_array($obeOperationsLatex) || empty($obeOperationsLatex)) {
+            $obeOperationsLatex = [''];
+        }
+
+        if ($obeRows < 1 || $obeRows > 6) {
+            $obeRows = 3;
+        }
+
+        if ($obeColumns < 1 || $obeColumns > 8) {
+            $obeColumns = 4;
+        }
+
+        if ($obeSeparatorBeforeColumn < 2 || $obeSeparatorBeforeColumn > $obeColumns) {
+            $obeSeparatorBeforeColumn = $obeColumns;
+        }
+
+        if (! is_array($obeInitialMatrix)) {
+            $obeInitialMatrix = [];
+        }
+
+        if (! is_array($obeResultMatrix)) {
+            $obeResultMatrix = [];
         }    @endphp
 
     <div class="px-4 py-8 sm:px-6 lg:px-8">
@@ -125,7 +170,7 @@
                     </h1>
 
                     <p class="mt-2 text-sm leading-6 text-slate-400">
-                        Buat soal isian, notasi matematika, nilai variabel, matriks, atau pilihan lebih dari satu jawaban.
+                        Buat soal isian, notasi matematika, nilai variabel, matriks, operasi baris elementer, atau pilihan lebih dari satu jawaban.
                     </p>
                 </div>
             </section>
@@ -137,6 +182,56 @@
                 x-data="{
                     questionType: @js($questionType),
                     maximumVariables: 8,
+                    obeOperationsLatex: @js(array_values($obeOperationsLatex)),
+
+                    addObeOperation() {
+                        if (this.obeOperationsLatex.length < 12) {
+                            this.obeOperationsLatex.push('');
+                        }
+                    },
+
+                    removeObeOperation(index) {
+                        if (this.obeOperationsLatex.length <= 1) {
+                            return;
+                        }
+
+                        this.obeOperationsLatex.splice(index, 1);
+                    },
+
+                    insertObeToken(index, latex) {
+                        const mathField = this.$root.querySelector(`[data-obe-math-field='${index}']`);
+
+                        if (! mathField) {
+                            return;
+                        }
+
+                        mathField.focus();
+
+                        if (typeof mathField.insert === 'function') {
+                            mathField.insert(latex);
+                        } else {
+                            mathField.value = `${mathField.value || ''}${latex}`;
+                        }
+
+                        this.obeOperationsLatex[index] = mathField.value;
+                    },                    obeRows: @js($obeRows),
+                    obeColumns: @js($obeColumns),
+                    obeHasSeparator: @js((bool) $obeHasSeparator),
+                    obeSeparatorBeforeColumn: @js($obeSeparatorBeforeColumn),
+
+                    ensureObeSettings() {
+                        this.obeRows = Math.min(6, Math.max(1, Number.parseInt(this.obeRows, 10) || 1));
+                        this.obeColumns = Math.min(8, Math.max(1, Number.parseInt(this.obeColumns, 10) || 1));
+
+                        if (this.obeHasSeparator && this.obeColumns < 2) {
+                            this.obeColumns = 2;
+                        }
+
+                        this.obeSeparatorBeforeColumn = Math.min(
+                            this.obeColumns,
+                            Math.max(2, Number.parseInt(this.obeSeparatorBeforeColumn, 10) || this.obeColumns)
+                        );
+                    },
                     matrixRows: @js($matrixRows),
                     matrixColumns: @js($matrixColumns),
                     matrixSeparatorBeforeColumn: @js($matrixSeparatorBeforeColumn),
@@ -258,6 +353,13 @@
                             <input type="radio" name="question_type" value="augmented_matrix" x-model="questionType" @change="ensureMatrixSettings()" class="sr-only">
                             <span class="block text-sm font-black text-white">Matriks Teraugmentasi</span>
                             <span class="mt-1 block text-xs leading-5 text-slate-400">Matriks dengan garis pemisah antara koefisien dan ruas kanan.</span>
+                        </label>
+
+                        <label class="cursor-pointer rounded-2xl border p-4 transition"
+                               :class="questionType === 'obe_matrix_operation' ? 'border-violet-300/40 bg-violet-400/10' : 'border-white/10 bg-slate-950/35 hover:border-white/20'">
+                            <input type="radio" name="question_type" value="obe_matrix_operation" x-model="questionType" @change="ensureObeSettings()" class="sr-only">
+                            <span class="block text-sm font-black text-white">Operasi Baris Elementer</span>
+                            <span class="mt-1 block text-xs leading-5 text-slate-400">Mahasiswa menulis operasi baris dan hasil matriksnya.</span>
                         </label>
 
                         <label class="cursor-pointer rounded-2xl border p-4 transition"
@@ -438,6 +540,167 @@
                     @error('matrix_answers')
                         <p class="mt-3 text-sm text-red-300">{{ $message }}</p>
                     @enderror
+                </section>
+                <section data-obe-configuration="dynamic" x-show="questionType === 'obe_matrix_operation'" x-transition>
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                        <div>
+                            <p class="text-sm font-black text-white">
+                                Konfigurasi Operasi Baris Elementer <span class="text-cyan-200">*</span>
+                            </p>
+
+                            <p class="mt-1 text-xs leading-5 text-slate-500">
+                                Masukkan matriks awal, notasi operasi yang diterima, serta matriks hasil yang benar.
+                            </p>
+                        </div>
+
+                        <div class="flex gap-3">
+                            <label class="w-24">
+                                <span class="text-xs font-bold uppercase tracking-wide text-slate-400">Baris</span>
+                                <input type="number" name="obe_rows" min="1" max="6"
+                                       x-model.number="obeRows" @change="ensureObeSettings()"
+                                       class="mt-2 h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-center text-sm font-black text-white outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                            </label>
+
+                            <label class="w-24">
+                                <span class="text-xs font-bold uppercase tracking-wide text-slate-400">Kolom</span>
+                                <input type="number" name="obe_columns" min="1" max="8"
+                                       x-model.number="obeColumns" @change="ensureObeSettings()"
+                                       class="mt-2 h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-center text-sm font-black text-white outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-end">
+                        <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-slate-950/35 px-4 py-3">
+                            <input type="checkbox"
+                                   name="obe_has_separator"
+                                   value="1"
+                                   x-model="obeHasSeparator"
+                                   @change="ensureObeSettings()"
+                                   class="rounded border-slate-500 bg-slate-900 text-cyan-400 focus:ring-cyan-400">
+                            <span class="text-sm font-bold text-slate-300">Gunakan garis pemisah ruas kanan</span>
+                        </label>
+
+                        <label x-show="obeHasSeparator" x-transition class="block">
+                            <span class="text-xs font-bold uppercase tracking-wide text-slate-400">Kolom Awal Ruas Kanan</span>
+                            <input type="number" name="obe_separator_before_column" min="2"
+                                   :max="obeColumns" x-model.number="obeSeparatorBeforeColumn"
+                                   @change="ensureObeSettings()"
+                                   class="mt-2 h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-center text-sm font-black text-white outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                        </label>
+                    </div>
+
+                    <div class="mt-5 grid gap-4 xl:grid-cols-2">
+                        <div class="overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/35 p-4">
+                            <p class="text-sm font-black text-white">Matriks Awal</p>
+                            <p class="mt-1 text-xs text-slate-500">Elemen matriks sebelum dilakukan operasi.</p>
+
+                            <div class="mt-4 w-max">
+                                <div class="grid gap-2" :style="'grid-template-columns: repeat(' + obeColumns + ', 62px)'">
+                                    @for ($row = 0; $row < 6; $row++)
+                                        @for ($column = 0; $column < 8; $column++)
+                                            <input type="text"
+                                                   x-show="obeRows > {{ $row }} && obeColumns > {{ $column }}"
+                                                   name="obe_initial_matrix[{{ $row }}][{{ $column }}]"
+                                                   value="{{ $obeInitialMatrix[$row][$column] ?? '' }}"
+                                                   autocomplete="off"
+                                                   placeholder="0"
+                                                   :class="{ 'border-l-4 border-l-violet-300': obeHasSeparator && obeSeparatorBeforeColumn === {{ $column + 1 }} }"
+                                                   class="h-11 rounded-xl border border-white/10 bg-slate-950/60 px-2 text-center font-mono text-sm font-black text-white placeholder:text-slate-600 outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                                        @endfor
+                                    @endfor
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/35 p-4">
+                            <p class="text-sm font-black text-white">Matriks Hasil</p>
+                            <p class="mt-1 text-xs text-slate-500">Elemen matriks yang benar setelah operasi dilakukan.</p>
+
+                            <div class="mt-4 w-max">
+                                <div class="grid gap-2" :style="'grid-template-columns: repeat(' + obeColumns + ', 62px)'">
+                                    @for ($row = 0; $row < 6; $row++)
+                                        @for ($column = 0; $column < 8; $column++)
+                                            <input type="text"
+                                                   x-show="obeRows > {{ $row }} && obeColumns > {{ $column }}"
+                                                   name="obe_result_matrix[{{ $row }}][{{ $column }}]"
+                                                   value="{{ $obeResultMatrix[$row][$column] ?? '' }}"
+                                                   autocomplete="off"
+                                                   placeholder="0"
+                                                   :class="{ 'border-l-4 border-l-violet-300': obeHasSeparator && obeSeparatorBeforeColumn === {{ $column + 1 }} }"
+                                                   class="h-11 rounded-xl border border-white/10 bg-slate-950/60 px-2 text-center font-mono text-sm font-black text-white placeholder:text-slate-600 outline-none transition focus:border-cyan-300/50 focus:ring-2 focus:ring-cyan-400/10">
+                                        @endfor
+                                    @endfor
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-5">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                            <div>
+                                <p class="text-sm font-black text-white">
+                                    Notasi Operasi yang Diterima <span class="text-cyan-200">*</span>
+                                </p>
+
+                                <p class="mt-1 text-xs leading-5 text-slate-500">
+                                    Gunakan editor matematika untuk menulis notasi operasi secara rapi. Tambahkan variasi hanya apabila memang ingin menerima bentuk notasi lain.
+                                </p>
+                            </div>
+
+                            <button type="button"
+                                    @click="addObeOperation()"
+                                    :disabled="obeOperationsLatex.length >= 12"
+                                    class="inline-flex justify-center rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3.5 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-40">
+                                + Tambah Variasi
+                            </button>
+                        </div>
+
+                        @error('obe_operations_latex')
+                            <p class="mt-3 text-sm text-red-300">{{ $message }}</p>
+                        @enderror
+
+                        <div class="mt-4 space-y-3">
+                            <template x-for="(operation, index) in obeOperationsLatex" :key="index">
+                                <div class="rounded-2xl border border-white/10 bg-slate-950/35 p-4">
+                                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <p class="text-sm font-black text-white">
+                                            Variasi Notasi <span x-text="index + 1"></span>
+                                        </p>
+
+                                        <button type="button"
+                                                @click="removeObeOperation(index)"
+                                                :disabled="obeOperationsLatex.length <= 1"
+                                                class="rounded-lg border border-red-300/20 bg-red-400/10 px-3 py-1.5 text-xs font-black text-red-200 transition hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-40">
+                                            Hapus
+                                        </button>
+                                    </div>
+
+                                    <div class="mt-3 overflow-hidden rounded-xl border border-white/10 bg-white">
+                                        <math-field
+                                            :data-obe-math-field="index"
+                                            x-init="$nextTick(() => { $el.value = operation || ''; })"
+                                            @input="obeOperationsLatex[index] = $event.target.value"
+                                            math-virtual-keyboard-policy="auto"
+                                            smart-fence="on"
+                                            class="block min-h-[64px] w-full border-0 bg-white px-4 py-3 text-center text-xl text-slate-900 shadow-none outline-none">
+                                        </math-field>
+                                    </div>
+
+                                    <input type="hidden"
+                                           :name="'obe_operations_latex[' + index + ']'"
+                                           x-model="obeOperationsLatex[index]">
+
+                                    
+
+                                </div>
+                            </template>
+                        </div>
+
+                        <p class="mt-3 text-xs leading-5 text-slate-500">
+                            Contoh tampilan: <span class="font-semibold text-slate-300">B₂ ← −1/3 B₂</span>. Sistem tetap menerima jawaban mahasiswa dengan format <span class="font-mono">B2 &lt;- -1 per 3 B2</span>.
+                        </p>
+                    </div>
                 </section>
                 <section x-show="questionType === 'variable_values'" x-transition>
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">

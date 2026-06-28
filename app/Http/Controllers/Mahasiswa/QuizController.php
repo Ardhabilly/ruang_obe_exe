@@ -651,8 +651,7 @@ class QuizController extends Controller
             'short_text', 'math_notation' => trim((string) ($payload['answer'] ?? '')) !== '',
             'variable_values' => $this->hasCompleteVariableResponse($question, $payload),
             'multi_short_text' => $this->hasCompleteMultiTextResponse($question, $payload),            'canvas_final_answer' => $this->hasAnyValue($payload['final'] ?? []),
-            'obe_matrix_operation' => trim((string) ($payload['operation'] ?? '')) !== ''
-                && $this->hasAnyValue($payload['result_matrix'] ?? []),
+            'obe_matrix_operation' => $this->hasCompleteObeResponse($question, $payload),
             'gauss_elimination', 'gauss_jordan' => $this->hasCompleteGaussResponse($question, $payload),            'matrix', 'augmented_matrix' => $this->hasCompleteMatrixResponse($question, $payload),
             'matrix_equation' => $this->hasAnyValue($payload['A'] ?? []) || $this->hasAnyValue($payload['b'] ?? []),
             default => false,
@@ -776,6 +775,30 @@ class QuizController extends Controller
         foreach ($fields as $field) {
             if (trim((string) ($answers[$field] ?? '')) === '') {
                 return false;
+            }
+        }
+
+        return true;
+    }
+    private function hasCompleteObeResponse($question, array $payload): bool
+    {
+        if (trim((string) ($payload['operation'] ?? '')) === '') {
+            return false;
+        }
+
+        $rows = (int) ($question->question_data['rows'] ?? 0);
+        $columns = (int) ($question->question_data['columns'] ?? 0);
+        $matrix = $payload['result_matrix'] ?? [];
+
+        if ($rows < 1 || $columns < 1 || ! is_array($matrix)) {
+            return false;
+        }
+
+        for ($row = 0; $row < $rows; $row++) {
+            for ($column = 0; $column < $columns; $column++) {
+                if (trim((string) ($matrix[$row][$column] ?? '')) === '') {
+                    return false;
+                }
             }
         }
 

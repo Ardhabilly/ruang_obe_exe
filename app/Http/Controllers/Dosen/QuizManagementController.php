@@ -21,6 +21,7 @@ class QuizManagementController extends Controller
         'variable_values',
         'matrix',
         'augmented_matrix',
+        'obe_matrix_operation',
         'checkbox',
     ];
 
@@ -293,6 +294,18 @@ class QuizManagementController extends Controller
             'matrix_answers' => ['nullable', 'array'],
             'matrix_answers.*' => ['nullable', 'array'],
             'matrix_answers.*.*' => ['nullable', 'string', 'max:100'],
+            'obe_rows' => ['nullable', 'integer', 'min:1', 'max:6'],
+            'obe_columns' => ['nullable', 'integer', 'min:1', 'max:8'],
+            'obe_has_separator' => ['nullable', 'boolean'],
+            'obe_separator_before_column' => ['nullable', 'integer', 'min:2', 'max:8'],
+            'obe_initial_matrix' => ['nullable', 'array'],
+            'obe_initial_matrix.*' => ['nullable', 'array'],
+            'obe_initial_matrix.*.*' => ['nullable', 'string', 'max:100'],
+            'obe_result_matrix' => ['nullable', 'array'],
+            'obe_result_matrix.*' => ['nullable', 'array'],
+            'obe_result_matrix.*.*' => ['nullable', 'string', 'max:100'],
+            'obe_operations_latex' => ['nullable', 'array', 'min:1', 'max:12'],
+            'obe_operations_latex.*' => ['nullable', 'string', 'max:1000'],
             'explanation' => ['nullable', 'string', 'max:2000'],
             'points' => ['required', 'integer', 'min:1', 'max:100'],
             'is_required' => ['nullable', 'boolean'],
@@ -307,6 +320,87 @@ class QuizManagementController extends Controller
             $questionData['equations'] = $equations;
         }
 
+        if ($questionType === 'obe_matrix_operation') {
+            $rows = (int) ($validated['obe_rows'] ?? 0);
+            $columns = (int) ($validated['obe_columns'] ?? 0);
+
+            if ($rows < 1 || $rows > 6 || $columns < 1 || $columns > 8) {
+                throw ValidationException::withMessages([
+                    'obe_rows' => 'Ukuran matriks OBE harus terdiri dari 1–6 baris dan 1–8 kolom.',
+                ]);
+            }
+
+            $hasSeparator = $request->boolean('obe_has_separator');
+
+            if ($hasSeparator && $columns < 2) {
+                throw ValidationException::withMessages([
+                    'obe_columns' => 'Matriks dengan garis pemisah memerlukan minimal dua kolom.',
+                ]);
+            }
+
+            $separatorBeforeColumn = $hasSeparator
+                ? (int) ($validated['obe_separator_before_column'] ?? $columns)
+                : null;
+
+            if ($hasSeparator
+                && ($separatorBeforeColumn < 2 || $separatorBeforeColumn > $columns)) {
+                throw ValidationException::withMessages([
+                    'obe_separator_before_column' => 'Kolom awal ruas kanan harus berada pada rentang 2 sampai jumlah kolom matriks.',
+                ]);
+            }
+
+            $initialMatrix = $this->buildRequiredMatrix(
+                (array) ($validated['obe_initial_matrix'] ?? []),
+                $rows,
+                $columns,
+                'obe_initial_matrix',
+                'matriks awal'
+            );
+
+            $resultMatrix = $this->buildRequiredMatrix(
+                (array) ($validated['obe_result_matrix'] ?? []),
+                $rows,
+                $columns,
+                'obe_result_matrix',
+                'matriks hasil'
+            );
+
+            $obeOperationsLatex = collect($validated['obe_operations_latex'] ?? [])
+                ->map(fn ($operation) => trim((string) $operation))
+                ->filter()
+                ->values()
+                ->all();
+
+            $acceptedOperations = $this->normalizeObeMathLiveOperations($obeOperationsLatex);
+
+            if (empty($acceptedOperations)) {
+                throw ValidationException::withMessages([
+                    'obe_operations_latex' => 'Masukkan minimal satu notasi operasi yang diterima.',
+                ]);
+            }
+
+            $obeData = $questionData;
+            $obeData['rows'] = $rows;
+            $obeData['columns'] = $columns;
+            $obeData['initial_matrix'] = $initialMatrix;
+            $obeData['has_separator'] = $hasSeparator;
+            $obeData['accepted_operations_latex'] = $obeOperationsLatex;
+
+            if ($hasSeparator) {
+                $obeData['separator_before_column'] = $separatorBeforeColumn;
+            }
+
+            return [
+                'question_text' => trim($validated['question_text']),
+                'question_type' => 'obe_matrix_operation',
+                'question_data' => $obeData,
+                'answer_key' => ['matrix' => $resultMatrix],
+                'accepted_answers' => $acceptedOperations,
+                'explanation' => $this->nullableText($validated['explanation'] ?? null),
+                'points' => (int) $validated['points'],
+                'is_required' => $request->boolean('is_required', true),
+            ];
+        }
         if (in_array($questionType, ['matrix', 'augmented_matrix'], true)) {
             $rows = (int) ($validated['matrix_rows'] ?? 0);
             $columns = (int) ($validated['matrix_columns'] ?? 0);
@@ -497,6 +591,107 @@ class QuizManagementController extends Controller
         ];
     }
 
+    private function normalizeObeMathLiveOperations(array $operations): array
+    {
+        return collect($operations)
+            ->map(fn ($operation) => $this->mathLiveObeToPlainText($operation))
+            ->map(fn ($operation) => $this->normalizeObeOperationForStorage($operation))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function mathLiveObeToPlainText($value): string
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return '';
+        }
+
+        $value = str_replace(
+            [
+                '\\longleftrightarrow',
+                '\\leftrightarrow',
+                '\\Longleftrightarrow',
+                '\\longleftarrow',
+                '\\leftarrow',
+                '\\gets',
+                '\\Leftarrow',
+            ],
+            [
+                '<->',
+                '<->',
+                '<->',
+                '<-',
+                '<-',
+                '<-',
+                '<-',
+            ],
+            $value
+        );
+
+        $value = preg_replace_callback(
+            '/\\\\frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/u',
+            static fn (array $matches): string => '(' . $matches[1] . ')/(' . $matches[2] . ')',
+            $value
+        ) ?? $value;
+
+        $value = preg_replace('/([A-Za-z])_\{?(\d+)\}?/u', '$1$2', $value) ?? $value;
+
+        $value = str_replace(
+            ['\\cdot', '\\times', '\\,', '\\!', '\\;', '\\:', '\\left', '\\right', '{', '}', '×', '·'],
+            ['', '', '', '', '', '', '', '', '', '', ''],
+            $value
+        );
+
+        return $value;
+    }
+
+    private function normalizeObeOperationForStorage($value): string
+    {
+        $value = strtolower(trim((string) $value));
+
+        $value = str_replace(
+            ['₁', '₂', '₃', '₄', '₅', '₆', '−', '–', '—', '↔', '⟷', '⇄', '←', '⟵', '⟸', '×', '·'],
+            ['1', '2', '3', '4', '5', '6', '-', '-', '-', '<->', '<->', '<->', '<-', '<-', '<-', '', ''],
+            $value
+        );
+
+        $value = str_ireplace('baris', 'b', $value);
+        $value = str_replace(['*', '_', '(', ')'], '', $value);
+        $value = preg_replace('/\s+/u', '', $value) ?? $value;
+
+        return str_replace('+-', '-', $value);
+    }
+    private function buildRequiredMatrix(
+        array $input,
+        int $rows,
+        int $columns,
+        string $inputName,
+        string $matrixLabel
+    ): array {
+        $matrix = [];
+
+        for ($row = 0; $row < $rows; $row++) {
+            $matrix[$row] = [];
+
+            for ($column = 0; $column < $columns; $column++) {
+                $value = $this->nullableText($input[$row][$column] ?? null);
+
+                if ($value === null) {
+                    throw ValidationException::withMessages([
+                        $inputName . '.' . $row . '.' . $column => 'Lengkapi seluruh elemen ' . $matrixLabel . '.',
+                    ]);
+                }
+
+                $matrix[$row][$column] = $value;
+            }
+        }
+
+        return $matrix;
+    }
     private function normalizeVariableLabel($value): ?string
     {
         $label = trim((string) $value);

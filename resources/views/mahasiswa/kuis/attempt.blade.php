@@ -642,7 +642,10 @@
                                         @php
                                             $rows = (int) ($data['rows'] ?? count($data['initial_matrix'] ?? []));
                                             $columns = (int) ($data['columns'] ?? count(($data['initial_matrix'][0] ?? [])));
-                                            $separatorBefore = (int) ($data['separator_before_column'] ?? $columns);
+                                            $hasSeparator = (bool) ($data['has_separator'] ?? isset($data['separator_before_column']));
+                                            $separatorBefore = $hasSeparator
+                                                ? (int) ($data['separator_before_column'] ?? $columns)
+                                                : 0;
                                             $initialMatrix = $data['initial_matrix'] ?? [];
                                         @endphp
 
@@ -650,7 +653,7 @@
                                             <div class="overflow-x-auto pb-2">
                                                 <div class="mx-auto w-max rounded-2xl border border-slate-300 bg-slate-50 p-4">
                                                     <p class="mb-3 text-center text-sm font-black text-slate-700">
-                                                        Matriks teraugmentasi awal
+                                                        {{ $hasSeparator ? 'Matriks teraugmentasi awal' : 'Matriks awal' }}
                                                     </p>
 
                                                     <div class="grid gap-2" style="grid-template-columns: repeat({{ $columns }}, 64px);">
@@ -789,7 +792,15 @@
                                                                class="mt-3 w-full rounded-xl border-slate-300 bg-white px-4 py-3 text-center font-bold text-slate-900 focus:border-cyan-500 focus:ring-cyan-500">
 
                                                         <div class="mt-3 grid grid-cols-4 gap-2">
-                                                            @foreach (['B1', 'B2', 'B3', '←', '↔', '+', '−', '1/'] as $token)
+                                                            @for ($rowToken = 1; $rowToken <= max(1, $rows); $rowToken++)
+                                                                <button type="button"
+                                                                        @click="insertToken(@js('B' . $rowToken))"
+                                                                        class="rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs font-black text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50">
+                                                                    B{{ $rowToken }}
+                                                                </button>
+                                                            @endfor
+
+                                                            @foreach (['←', '↔', '+', '−', '1/'] as $token)
                                                                 <button type="button"
                                                                         @click="insertToken(@js($token))"
                                                                         class="rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs font-black text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50">
