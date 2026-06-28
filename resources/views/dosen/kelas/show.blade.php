@@ -63,6 +63,156 @@
                 </div>
             </section>
 
+            <section data-section="kuis-kelas" class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-6 backdrop-blur-xl">
+                <div class="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
+                    <div>
+                        <p class="text-sm font-semibold text-cyan-200">Manajemen Kuis Kelas</p>
+                        <h2 class="mt-1 text-xl font-black text-white">Kuis {{ $classGroup->name }}</h2>
+                        <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                            Kuis pada bagian ini hanya berlaku untuk kelas ini. Kelola kuis tanpa tercampur dengan kelas lain.
+                        </p>
+                    </div>
+
+                    <a href="{{ route('dosen.kuis.create', ['class_group_id' => $classGroup->id]) }}"
+                       class="inline-flex w-fit items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-300">
+                        <span class="text-base">+</span>
+                        Buat Kuis untuk Kelas Ini
+                    </a>
+                </div>
+
+                <div class="mt-5 grid gap-3 sm:grid-cols-4">
+                    <div class="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                        <p class="text-xs text-slate-400">Total Kuis</p>
+                        <p class="mt-2 text-2xl font-black text-white">{{ $classQuizSummary['total'] }}</p>
+                    </div>
+
+                    <div class="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                        <p class="text-xs text-slate-400">Kuis Aktif</p>
+                        <p class="mt-2 text-2xl font-black text-green-300">{{ $classQuizSummary['active'] }}</p>
+                    </div>
+
+                    <div class="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                        <p class="text-xs text-slate-400">Draf Kuis</p>
+                        <p class="mt-2 text-2xl font-black text-yellow-200">{{ $classQuizSummary['draft'] }}</p>
+                    </div>
+
+                    <div class="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                        <p class="text-xs text-slate-400">Evaluasi Akhir</p>
+                        <p class="mt-2 text-2xl font-black text-violet-200">{{ $classQuizSummary['final'] }}</p>
+                    </div>
+                </div>
+
+                @php
+                    $chapterQuizzes = $classQuizzes->where('type', 'kuis_bab');
+                    $finalEvaluations = $classQuizzes->where('type', 'evaluasi_akhir');
+                @endphp
+
+                <div class="mt-6">
+                    <div class="flex items-center gap-3">
+                        <h3 class="text-sm font-black uppercase tracking-[0.14em] text-slate-300">Kuis Bab</h3>
+                        <span class="h-px flex-1 bg-white/10"></span>
+                    </div>
+
+                    <div class="mt-3 grid gap-3 lg:grid-cols-2">
+                        @forelse ($chapterQuizzes as $quiz)
+                            <article class="rounded-2xl border border-white/10 bg-slate-950/35 p-4 transition hover:border-cyan-300/20">
+                                <div class="flex flex-wrap items-start justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <span class="rounded-full bg-cyan-400/10 px-2.5 py-1 text-[11px] font-black text-cyan-100">
+                                                Kuis Bab {{ $quiz->module?->order_number ?? '-' }}
+                                            </span>
+                                            <span class="rounded-full px-2.5 py-1 text-[11px] font-black {{ $quiz->is_active ? 'bg-green-400/10 text-green-200' : 'bg-yellow-400/10 text-yellow-200' }}">
+                                                {{ $quiz->is_active ? 'Aktif' : 'Draf' }}
+                                            </span>
+                                        </div>
+
+                                        <h4 class="mt-3 truncate text-base font-black text-white">{{ $quiz->title }}</h4>
+                                        <p class="mt-1 truncate text-sm text-slate-400">{{ $quiz->module?->title ?? 'Materi belum dipilih' }}</p>
+                                    </div>
+
+                                    <a href="{{ route('dosen.kuis.show', $quiz) }}"
+                                       class="shrink-0 rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-400/20">
+                                        Kelola
+                                    </a>
+                                </div>
+
+                                <div class="mt-4 grid grid-cols-3 gap-2 border-t border-white/10 pt-3 text-center">
+                                    <div>
+                                        <p class="text-[11px] text-slate-500">Durasi</p>
+                                        <p class="mt-1 text-sm font-black text-white">{{ $quiz->duration_minutes }} mnt</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-[11px] text-slate-500">Soal</p>
+                                        <p class="mt-1 text-sm font-black text-white">{{ $quiz->questions_count }}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-[11px] text-slate-500">Percobaan</p>
+                                        <p class="mt-1 text-sm font-black text-white">{{ $quiz->attempts_count }}</p>
+                                    </div>
+                                </div>
+                            </article>
+                        @empty
+                            <div class="rounded-2xl border border-dashed border-white/15 bg-slate-950/25 p-5 text-sm text-slate-400 lg:col-span-2">
+                                Belum ada kuis bab untuk kelas ini.
+                            </div>
+                        @endforelse
+                    </div>
+                </div>
+
+                <div class="mt-6">
+                    <div class="flex items-center gap-3">
+                        <h3 class="text-sm font-black uppercase tracking-[0.14em] text-slate-300">Evaluasi Akhir</h3>
+                        <span class="h-px flex-1 bg-white/10"></span>
+                    </div>
+
+                    <div class="mt-3 grid gap-3 lg:grid-cols-2">
+                        @forelse ($finalEvaluations as $quiz)
+                            <article class="rounded-2xl border border-violet-300/15 bg-violet-400/[0.05] p-4 transition hover:border-violet-300/30">
+                                <div class="flex flex-wrap items-start justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <span class="rounded-full bg-violet-400/10 px-2.5 py-1 text-[11px] font-black text-violet-200">
+                                                Evaluasi Akhir
+                                            </span>
+                                            <span class="rounded-full px-2.5 py-1 text-[11px] font-black {{ $quiz->is_active ? 'bg-green-400/10 text-green-200' : 'bg-yellow-400/10 text-yellow-200' }}">
+                                                {{ $quiz->is_active ? 'Aktif' : 'Draf' }}
+                                            </span>
+                                        </div>
+
+                                        <h4 class="mt-3 truncate text-base font-black text-white">{{ $quiz->title }}</h4>
+                                        <p class="mt-1 text-sm text-slate-400">Mencakup seluruh materi Bab 1 sampai Bab 4.</p>
+                                    </div>
+
+                                    <a href="{{ route('dosen.kuis.show', $quiz) }}"
+                                       class="shrink-0 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 py-2 text-xs font-black text-violet-100 transition hover:bg-violet-400/20">
+                                        Kelola
+                                    </a>
+                                </div>
+
+                                <div class="mt-4 grid grid-cols-3 gap-2 border-t border-violet-300/10 pt-3 text-center">
+                                    <div>
+                                        <p class="text-[11px] text-slate-500">Durasi</p>
+                                        <p class="mt-1 text-sm font-black text-white">{{ $quiz->duration_minutes }} mnt</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-[11px] text-slate-500">Soal</p>
+                                        <p class="mt-1 text-sm font-black text-white">{{ $quiz->questions_count }}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-[11px] text-slate-500">Percobaan</p>
+                                        <p class="mt-1 text-sm font-black text-white">{{ $quiz->attempts_count }}</p>
+                                    </div>
+                                </div>
+                            </article>
+                        @empty
+                            <div class="rounded-2xl border border-dashed border-violet-300/15 bg-violet-400/[0.03] p-5 text-sm text-slate-400 lg:col-span-2">
+                                Evaluasi akhir belum dibuat untuk kelas ini.
+                            </div>
+                        @endforelse
+                    </div>
+                </div>
+            </section>
             <section class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-6 backdrop-blur-xl">
                 <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                     <div>

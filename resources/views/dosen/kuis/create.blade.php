@@ -56,7 +56,7 @@
                                 <option value="" class="bg-slate-950">Pilih kelas</option>
                                 @foreach ($classGroups as $classGroup)
                                     <option value="{{ $classGroup->id }}"
-                                        @selected((string) old('class_group_id') === (string) $classGroup->id)
+                                        @selected((string) old('class_group_id', request('class_group_id')) === (string) $classGroup->id)
                                         class="bg-slate-950">
                                         {{ $classGroup->name }}{{ $classGroup->is_active ? '' : ' — nonaktif' }}
                                     </option>

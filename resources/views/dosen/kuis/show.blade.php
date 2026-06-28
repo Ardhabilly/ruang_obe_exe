@@ -14,9 +14,9 @@
             @endif
 
             <section class="rounded-2xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur-xl sm:p-6">
-                <a href="{{ route('dosen.kuis.index') }}"
+                <a href="{{ route('dosen.kelas.show', $quiz->classGroup) }}"
                    class="inline-flex items-center gap-2 text-sm font-bold text-cyan-200 transition hover:text-cyan-100">
-                    ← Manajemen Kuis
+                    ← Kembali ke Kelas
                 </a>
 
                 <div class="mt-5 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">

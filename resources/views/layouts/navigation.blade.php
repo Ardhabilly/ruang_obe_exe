@@ -47,11 +47,7 @@
                             {{ request()->routeIs('dosen.kelas.*') ? 'bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-300/20' : 'text-slate-300 hover:bg-white/5 hover:text-white' }}">
                                 Kelas
                         </a>
-                        <a href="{{ route('dosen.kuis.index') }}"
-                           class="rounded-xl px-4 py-2 text-sm font-semibold transition
-                           {{ request()->routeIs('dosen.kuis.*') ? 'bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-300/20' : 'text-slate-300 hover:bg-white/5 hover:text-white' }}">
-                            Manajemen Kuis
-                        </a>
+                        {{-- Manajemen Kuis dipusatkan pada halaman kelas. --}}
                     @endif
                 </div>
             </div>
@@ -103,10 +99,7 @@
                     Kelas
                 </a>
 
-                <a href="{{ route('dosen.kuis.index') }}"
-                   class="block rounded-xl bg-white/5 px-4 py-3 text-sm font-semibold text-slate-200">
-                    Manajemen Kuis
-                </a>
+                {{-- Manajemen Kuis dipusatkan pada halaman kelas. --}}
             @endif
 
             <a href="{{ route('profile.edit') }}"

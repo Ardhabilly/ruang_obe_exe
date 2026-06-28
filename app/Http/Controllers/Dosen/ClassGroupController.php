@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Dosen;
 
 use App\Http\Controllers\Controller;
 use App\Models\ClassGroup;
+use App\Models\Quiz;
 use App\Models\QuizAttempt;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -56,6 +57,21 @@ class ClassGroupController extends Controller
 
         $classGroup->load(['members.user:id,name,email']);
 
+        $classQuizzes = Quiz::query()
+            ->with(['module:id,title,order_number'])
+            ->withCount(['questions', 'attempts'])
+            ->where('class_group_id', $classGroup->id)
+            ->orderByRaw("CASE WHEN type = 'kuis_bab' THEN 0 ELSE 1 END")
+            ->orderBy('course_module_id')
+            ->orderBy('title')
+            ->get();
+
+        $classQuizSummary = [
+            'total' => $classQuizzes->count(),
+            'active' => $classQuizzes->where('is_active', true)->count(),
+            'draft' => $classQuizzes->where('is_active', false)->count(),
+            'final' => $classQuizzes->where('type', 'evaluasi_akhir')->count(),
+        ];
         $quizAttempts = QuizAttempt::query()
             ->with([
                 'user:id,name,email',
@@ -120,7 +136,9 @@ class ClassGroupController extends Controller
         return view('dosen.kelas.show', compact(
             'classGroup',
             'studentSummaries',
-            'quizSummary'
+            'quizSummary',
+            'classQuizzes',
+            'classQuizSummary'
         ));
     }
 

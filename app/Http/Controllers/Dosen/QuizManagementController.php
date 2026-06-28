@@ -15,34 +15,7 @@ class QuizManagementController extends Controller
 {
     public function index()
     {
-        $classGroups = ClassGroup::query()
-            ->where('dosen_id', Auth::id())
-            ->orderBy('name')
-            ->get(['id', 'name', 'is_active']);
-
-        $classGroupIds = $classGroups->pluck('id');
-
-        $quizzes = Quiz::query()
-            ->with([
-                'classGroup:id,name,kkm',
-                'module:id,title,order_number',
-            ])
-            ->withCount(['questions', 'attempts'])
-            ->whereIn('class_group_id', $classGroupIds)
-            ->latest()
-            ->get();
-
-        $quizSummary = [
-            'total' => $quizzes->count(),
-            'active' => $quizzes->where('is_active', true)->count(),
-            'draft' => $quizzes->where('is_active', false)->count(),
-        ];
-
-        return view('dosen.kuis.index', compact(
-            'classGroups',
-            'quizzes',
-            'quizSummary'
-        ));
+        return redirect()->route('dosen.kelas.index');
     }
 
     public function create()
