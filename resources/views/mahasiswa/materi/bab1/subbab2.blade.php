@@ -135,9 +135,9 @@
 
 <section class="space-y-6">
     <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p class="text-sm font-bold uppercase tracking-wide text-cyan-600">
+        {{-- <p class="text-sm font-bold uppercase tracking-wide text-cyan-600">
             1.1 BENTUK UMUM SISTEM PERSAMAAN LINEAR
-        </p>
+        </p> --}}
 
         <p class="mt-4 leading-7 text-slate-700">
             Ketika sebuah masalah di dunia nyata melibatkan banyak hal yang saling memengaruhi, satu persamaan saja tidak akan cukup untuk menemukan jawaban pastinya. Kita butuh sekumpulan persamaan yang bekerja bersama-sama sekaligus untuk menemukan nilai dari variabel-variabel tersebut. Kumpulan dari beberapa persamaan linear yang saling berkaitan inilah yang kita sebut sebagai Sistem Persamaan Linear (SPL).

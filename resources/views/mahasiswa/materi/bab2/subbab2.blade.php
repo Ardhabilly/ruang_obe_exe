@@ -312,9 +312,9 @@
 
 <section class="space-y-10">
     <div class="space-y-4">
-        <h2 class="text-2xl font-black text-slate-950">
+        {{-- <h2 class="text-2xl font-black text-slate-950">
             2.2 Jenis-Jenis Operasi Baris Elementer
-        </h2>
+        </h2> --}}
 
         <p>
             Untuk memanipulasi baris matriks hingga mencapai bentuk eselon, kita hanya diperbolehkan

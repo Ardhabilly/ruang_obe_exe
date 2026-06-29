@@ -150,10 +150,9 @@
 
 <section class="space-y-6">
     <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p class="text-sm font-bold uppercase tracking-wide text-cyan-600">
+        {{-- <p class="text-sm font-bold uppercase tracking-wide text-cyan-600">
             1.3 KEMUNGKINAN SOLUSI SISTEM PERSAMAAN LINEAR
-        </p>
-
+        </p> --}}
         <p class="mt-4 leading-7 text-slate-700">
             Setelah kita bisa mengenali bentuk umum dan bagian-bagian dari Sistem Persamaan Linear (SPL), pertanyaan berikutnya adalah “Apakah semua sistem persamaan matematika pasti bisa diselesaikan dan menghasilkan satu jawaban pasti?”
         </p>

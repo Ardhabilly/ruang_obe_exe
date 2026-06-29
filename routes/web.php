@@ -38,6 +38,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/materi', [MahasiswaCourseController::class, 'index'])
                 ->name('materi.index');
 
+            Route::get('/materi/lanjutkan', [MahasiswaCourseController::class, 'continueLearning'])
+                ->name('materi.lanjutkan');
             Route::get('/materi/{lesson:slug}', [MahasiswaCourseController::class, 'show'])
                 ->name('materi.show');
 

@@ -44,6 +44,57 @@ class CourseController extends Controller
         ));
     }
 
+    /* MATERI_LANJUTKAN_TERAKHIR_V2 */
+    public function continueLearning()
+    {
+        $user = Auth::user();
+
+        $lastProgress = UserLessonProgress::query()
+            ->with(['lesson.module.course'])
+            ->where('user_id', $user->id)
+            ->whereNotNull('last_accessed_at')
+            ->whereHas('lesson.module.course', function ($query) {
+                $query->where('is_active', true);
+            })
+            ->orderByDesc('last_accessed_at')
+            ->first();
+
+        /*
+         * Cadangan untuk data progres lama yang dibuat sebelum
+         * last_accessed_at tersedia.
+         */
+        if (! $lastProgress) {
+            $lastProgress = UserLessonProgress::query()
+                ->with(['lesson.module.course'])
+                ->where('user_id', $user->id)
+                ->whereHas('lesson.module.course', function ($query) {
+                    $query->where('is_active', true);
+                })
+                ->orderByDesc('updated_at')
+                ->first();
+        }
+
+        if ($lastProgress?->lesson) {
+            return redirect()->route('mahasiswa.materi.show', $lastProgress->lesson->slug);
+        }
+
+        $firstLesson = CourseLesson::query()
+            ->join('course_modules', 'course_lessons.course_module_id', '=', 'course_modules.id')
+            ->join('courses', 'course_modules.course_id', '=', 'courses.id')
+            ->where('courses.is_active', true)
+            ->orderBy('course_modules.order_number')
+            ->orderBy('course_lessons.order_number')
+            ->select('course_lessons.*')
+            ->first();
+
+        if ($firstLesson) {
+            return redirect()->route('mahasiswa.materi.show', $firstLesson->slug);
+        }
+
+        return redirect()
+            ->route('mahasiswa.dashboard')
+            ->with('warning', 'Materi pembelajaran belum tersedia.');
+    }
     public function show(CourseLesson $lesson)
     {
         $user = Auth::user();
@@ -94,6 +145,11 @@ class CourseController extends Controller
                 'started_at' => now(),
             ]);
         }
+
+        /* MATERI_LAST_ACCESSED_UPDATE_V2 */
+        $progress->update([
+            'last_accessed_at' => now(),
+        ]);
 
         $previousLesson = $currentIndex > 0
             ? $allLessons[$currentIndex - 1]
@@ -244,9 +300,11 @@ class CourseController extends Controller
             $durationSeconds = max(60, $progress->started_at->diffInSeconds(now()));
         }
 
+        /* MATERI_COMPLETE_LAST_ACCESSED_V2 */
         $progress->update([
             'completed' => true,
             'completed_at' => now(),
+            'last_accessed_at' => now(),
             'duration_seconds' => $durationSeconds,
         ]);
 

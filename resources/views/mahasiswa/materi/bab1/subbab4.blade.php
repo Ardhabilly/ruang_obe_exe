@@ -183,9 +183,9 @@
 
 <section class="space-y-8">
     <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p class="text-sm font-bold uppercase tracking-wide text-cyan-600">
+        {{-- <p class="text-sm font-bold uppercase tracking-wide text-cyan-600">
             1.4 METODE PENYELESAIAN SPL MENUJU REPRESENTASI MATRIKS
-        </p>
+        </p> --}}
 
         <p class="mt-4 leading-7 text-slate-700">
             Sebelum mengeksplorasi teknik komputasi yang lebih kompleks, mari kita tinjau kembali pengetahuan fundamental mengenai pencarian himpunan penyelesaian (solusi) dari suatu Sistem Persamaan Linear (SPL). Secara analitis, untuk menyelesaikan sistem berskala kecil, terdapat dua pendekatan konvensional yang umum digunakan, yaitu:

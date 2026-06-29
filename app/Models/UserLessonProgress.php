@@ -13,6 +13,7 @@ class UserLessonProgress extends Model
         'course_lesson_id',
         'completed',
         'started_at',
+        'last_accessed_at',
         'completed_at',
         'duration_seconds',
     ];
@@ -20,6 +21,7 @@ class UserLessonProgress extends Model
     protected $casts = [
         'completed' => 'boolean',
         'started_at' => 'datetime',
+        'last_accessed_at' => 'datetime',
         'completed_at' => 'datetime',
     ];
 
