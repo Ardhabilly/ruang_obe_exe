@@ -1,10 +1,11 @@
-{{-- SUBBAB_3_3_ELIMINASI_GAUSS_V1 --}}
+{{-- SUBBAB_3_3_RINCIAN_LENGKAP_V2 --}}
 @php
     $demoKey = 'contoh-simulasi-3-3-substitusi-balik';
     $activityKey = 'aktivitas-3-2-eliminasi-gauss';
-    $definitionVersion = 'subbab33_eliminasi_gauss_v1';
+    $demoDefinitionVersion = 'subbab33_eliminasi_gauss_v1';
+    $activityDefinitionVersion = 'subbab33_eliminasi_gauss_v2';
 
-    $buildPracticeState = function (string $practiceKey) use ($practiceSubmissions, $definitionVersion): array {
+    $buildPracticeState = function (string $practiceKey, string $definitionVersion) use ($practiceSubmissions): array {
         $submission = $practiceSubmissions->get($practiceKey);
 
         $storedAnswers = is_array($submission?->answers) ? $submission->answers : [];
@@ -51,8 +52,8 @@
         ];
     };
 
-    $demo = $buildPracticeState($demoKey);
-    $activity = $buildPracticeState($activityKey);
+    $demo = $buildPracticeState($demoKey, $demoDefinitionVersion);
+    $activity = $buildPracticeState($activityKey, $activityDefinitionVersion);
 
     $inputClass = function (array $state, string $fieldKey): string {
         return match ($state['feedback'][$fieldKey]['state'] ?? null) {
@@ -308,6 +309,7 @@
             'detail' => 'Elemen pada Baris-2 Kolom-1 bernilai 4 sehingga perlu dieliminasi dengan acuan Baris-1.',
             'notation' => 'a_f1_b2_notasi',
             'action' => 'Gunakan Baris-1 sebagai acuan untuk mengenolkan elemen 4 pada Baris-2.',
+            'coefficient' => 'a_f1_b2_k',
             'product' => ['a_f1_b2_produk_1', 'a_f1_b2_produk_2', 'a_f1_b2_produk_3', 'a_f1_b2_produk_4'],
             'result' => ['a_f1_b2_hasil_1', 'a_f1_b2_hasil_2', 'a_f1_b2_hasil_3', 'a_f1_b2_hasil_4'],
             'old' => ['4', '1', '1', '11'],
@@ -319,6 +321,7 @@
             'detail' => 'Elemen pada Baris-3 Kolom-1 bernilai -2 sehingga perlu dieliminasi dengan acuan Baris-1.',
             'notation' => 'a_f1_b3_notasi',
             'action' => 'Gunakan Baris-1 sebagai acuan untuk mengenolkan elemen -2 pada Baris-3.',
+            'coefficient' => 'a_f1_b3_k',
             'product' => ['a_f1_b3_produk_1', 'a_f1_b3_produk_2', 'a_f1_b3_produk_3', 'a_f1_b3_produk_4'],
             'result' => ['a_f1_b3_hasil_1', 'a_f1_b3_hasil_2', 'a_f1_b3_hasil_3', 'a_f1_b3_hasil_4'],
             'old' => ['-2', '1', '3', '-2'],
@@ -341,6 +344,7 @@
             'detail' => 'Elemen pada Baris-3 Kolom-2 bernilai 3 sehingga perlu dieliminasi dengan acuan Baris-2.',
             'notation' => 'a_f2_b3_notasi',
             'action' => 'Gunakan Baris-2 sebagai acuan untuk mengenolkan elemen 3 pada Baris-3.',
+            'coefficient' => 'a_f2_b3_k',
             'product' => ['a_f2_b3_produk_1', 'a_f2_b3_produk_2', 'a_f2_b3_produk_3', 'a_f2_b3_produk_4'],
             'old' => ['a_f2_b3_awal_1', 'a_f2_b3_awal_2', 'a_f2_b3_awal_3', 'a_f2_b3_awal_4'],
             'result' => ['a_f2_b3_hasil_3', 'a_f2_b3_hasil_4'],
@@ -639,6 +643,7 @@
                                         <div class="min-w-max space-y-4 rounded-2xl border border-slate-200 bg-white p-4 text-center text-slate-950">
                                             <div class="flex items-center justify-center gap-3">
                                                 <span class="font-semibold">\({!! $step['target'] !!} \leftarrow\)</span>
+                                                {!! $fieldInput($activity, $step['coefficient'], 'Konstanta pengali rincian fase 1', 'h-10 w-16') !!}
                                                 {!! $matrixRow($activity, $inputCells($step['product']), 'Hasil perkalian fase 1') !!}
                                                 <span class="font-semibold">\( + \)</span>
                                                 {!! $matrixRow($activity, $step['old'], 'Baris target awal fase 1') !!}
@@ -697,6 +702,7 @@
                                         <div class="min-w-max space-y-4 rounded-2xl border border-slate-200 bg-white p-4 text-center text-slate-950">
                                             <div class="flex items-center justify-center gap-3">
                                                 <span class="font-semibold">\({!! $step['target'] !!} \leftarrow\)</span>
+                                                {!! $fieldInput($activity, $step['coefficient'], 'Konstanta pengali rincian fase 2', 'h-10 w-16') !!}
                                                 {!! $matrixRow($activity, $inputCells($step['product']), 'Hasil perkalian fase 2') !!}
                                                 <span class="font-semibold">\( + \)</span>
                                                 {!! $matrixRow($activity, $inputCells($step['old']), 'Baris target awal fase 2') !!}

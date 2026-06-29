@@ -2382,7 +2382,7 @@ class PracticeController extends Controller
 
 
 
-    // SUBBAB_3_3_ELIMINASI_GAUSS_V1
+    // SUBBAB_3_3_RINCIAN_LENGKAP_V2
     private function getSubbab33PracticeDefinition(string $practiceKey): ?array
     {
         $valueAnswers = static function (string $value): array {
@@ -2500,7 +2500,7 @@ class PracticeController extends Controller
             'aktivitas-3-2-eliminasi-gauss' => [
                 'title' => 'Aktivitas 3.2 - Menyelesaikan SPL dengan Eliminasi Gauss',
                 'type' => 'aktivitas',
-                'definition_version' => 'subbab33_eliminasi_gauss_v1',
+                'definition_version' => 'subbab33_eliminasi_gauss_v2',
                 'max_score' => 100,
                 'groups' => [
                     'fase_1' => [
@@ -2508,10 +2508,10 @@ class PracticeController extends Controller
                         'fields' => [
                             'a_f1_q1_pivot', 'a_f1_pivot_notasi',
                             'a_f1_pivot_11', 'a_f1_pivot_12', 'a_f1_pivot_13', 'a_f1_pivot_14',
-                            'a_f1_q2_baris2', 'a_f1_b2_notasi',
+                            'a_f1_q2_baris2', 'a_f1_b2_notasi', 'a_f1_b2_k',
                             'a_f1_b2_produk_1', 'a_f1_b2_produk_2', 'a_f1_b2_produk_3', 'a_f1_b2_produk_4',
                             'a_f1_b2_hasil_1', 'a_f1_b2_hasil_2', 'a_f1_b2_hasil_3', 'a_f1_b2_hasil_4',
-                            'a_f1_q3_baris3', 'a_f1_b3_notasi',
+                            'a_f1_q3_baris3', 'a_f1_b3_notasi', 'a_f1_b3_k',
                             'a_f1_b3_produk_1', 'a_f1_b3_produk_2', 'a_f1_b3_produk_3', 'a_f1_b3_produk_4',
                             'a_f1_b3_hasil_1', 'a_f1_b3_hasil_2', 'a_f1_b3_hasil_3', 'a_f1_b3_hasil_4',
                         ],
@@ -2521,7 +2521,7 @@ class PracticeController extends Controller
                         'number' => 2,
                         'fields' => [
                             'a_f2_q1_pivot', 'a_f2_pivot_notasi', 'a_f2_pivot_23', 'a_f2_pivot_24',
-                            'a_f2_q2_baris3', 'a_f2_b3_notasi',
+                            'a_f2_q2_baris3', 'a_f2_b3_notasi', 'a_f2_b3_k',
                             'a_f2_b3_produk_1', 'a_f2_b3_produk_2', 'a_f2_b3_produk_3', 'a_f2_b3_produk_4',
                             'a_f2_b3_awal_1', 'a_f2_b3_awal_2', 'a_f2_b3_awal_3', 'a_f2_b3_awal_4',
                             'a_f2_b3_hasil_3', 'a_f2_b3_hasil_4',
@@ -2590,6 +2590,7 @@ class PracticeController extends Controller
                         'Gunakan -4B₁ kemudian tambahkan ke B₂.'
                     ),
                     ...$valueQuestions([
+                        'a_f1_b2_k' => '-4',
                         'a_f1_b2_produk_1' => '-4',
                         'a_f1_b2_produk_2' => '-4',
                         'a_f1_b2_produk_3' => '2',
@@ -2610,6 +2611,7 @@ class PracticeController extends Controller
                         'Gunakan 2B₁ kemudian tambahkan ke B₃.'
                     ),
                     ...$valueQuestions([
+                        'a_f1_b3_k' => '2',
                         'a_f1_b3_produk_1' => '2',
                         'a_f1_b3_produk_2' => '2',
                         'a_f1_b3_produk_3' => '-1',
@@ -2644,6 +2646,7 @@ class PracticeController extends Controller
                         'Gunakan -3B₂ kemudian tambahkan ke B₃.'
                     ),
                     ...$valueQuestions([
+                        'a_f2_b3_k' => '-3',
                         'a_f2_b3_produk_1' => '0',
                         'a_f2_b3_produk_2' => '-3',
                         'a_f2_b3_produk_3' => '3',
