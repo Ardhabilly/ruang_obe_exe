@@ -72,9 +72,9 @@
                     </span>
                 </a>
 
-                <span class="hidden border-l border-slate-800 pl-4 text-sm font-medium text-slate-400 lg:inline">
-                    {{ $isMaterialSidebar ? $courseTitle : ($isMahasiswa ? 'Area Mahasiswa' : 'Area Dosen') }}
-                </span>
+                {{-- <span class="hidden border-l border-slate-800 pl-4 text-sm font-medium text-slate-400 lg:inline">
+                    {{ $isMaterialSidebar ? $courseTitle : ($isMahasiswa ? 'Mahasiswa' : 'Dosen') }}
+                </span> --}}
             </div>
 
             <div class="relative flex items-center" @click.outside="userMenuOpen = false">
@@ -91,6 +91,9 @@
                     <span class="hidden text-left sm:block">
                         <span class="block max-w-32 truncate text-sm font-medium text-white">
                             {{ $currentUser->name }}
+                        </span>
+                        <span class="hidden text-left sm:block text-sm font text-slate-400 lg:inline">
+                            {{ ($isMahasiswa ? 'Mahasiswa' : 'Dosen') }}
                         </span>
                     </span>
                 </button>
@@ -173,9 +176,8 @@
 
         <div class="no-scrollbar h-[calc(100vh-4rem)] overflow-y-auto px-3 py-4">
             @if ($isMaterialSidebar)
-                {{-- Tampilan materi dengan pola menu bawaan Tailwind --}}
+                {{-- Tampilan materi--}}
 
-                {{-- FLOWBITE_MATERIAL_DASHBOARD_BUTTON_V1 --}}
                 <div class="mb-3">
                     <a
                         href="{{ route('mahasiswa.dashboard') }}"
