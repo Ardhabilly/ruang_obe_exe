@@ -35,10 +35,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/kelas/gabung', [MahasiswaClassJoinController::class, 'join'])
                 ->name('kelas.join');
 
-            Route::get('/materi', [MahasiswaCourseController::class, 'index'])
-                ->name('materi.index');
-
-            Route::get('/materi/lanjutkan', [MahasiswaCourseController::class, 'continueLearning'])
+Route::get('/materi/lanjutkan', [MahasiswaCourseController::class, 'continueLearning'])
                 ->name('materi.lanjutkan');
             Route::get('/materi/{lesson:slug}', [MahasiswaCourseController::class, 'show'])
                 ->name('materi.show');

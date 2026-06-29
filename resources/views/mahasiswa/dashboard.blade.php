@@ -30,11 +30,7 @@
                                     Lanjut Belajar
                                 </a>
                             @else
-                                <a href="{{ route('mahasiswa.materi.index') }}"
-                                   class="rounded-2xl bg-cyan-400 px-6 py-3 text-sm font-bold text-slate-950 shadow-lg shadow-cyan-500/20 transition hover:bg-cyan-300">
-                                    Lihat Materi
-                                </a>
-                            @endif
+@endif
 
                             <a href="{{ route('mahasiswa.kelas.index') }}"
                                class="rounded-2xl border border-white/10 bg-white/5 px-6 py-3 text-sm font-bold text-white transition hover:bg-white/10">

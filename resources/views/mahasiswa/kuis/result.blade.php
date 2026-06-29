@@ -91,12 +91,7 @@
                     </div>
 
                     <div class="flex flex-wrap gap-3">
-                        <a href="{{ route('mahasiswa.materi.index') }}"
-                           class="rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-black text-slate-950 hover:bg-cyan-300">
-                            Kembali ke Materi
-                        </a>
-
-                        @if ($canRemedial)
+@if ($canRemedial)
                             <a href="{{ route('mahasiswa.kuis.instruction', $attempt->quiz) }}"
                                class="rounded-2xl bg-yellow-400 px-5 py-3 text-sm font-black text-slate-950 hover:bg-yellow-300">
                                 Ikuti Remedial Ke-{{ $nextAttemptNumber }}

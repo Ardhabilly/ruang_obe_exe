@@ -14,36 +14,6 @@ use App\Models\Quiz;
 
 class CourseController extends Controller
 {
-    public function index()
-    {
-        $user = Auth::user();
-
-        $courses = Course::with(['modules.lessons'])
-            ->where('is_active', true)
-            ->get();
-
-        $totalLessons = CourseLesson::count();
-
-        $completedLessonIds = UserLessonProgress::where('user_id', $user->id)
-            ->where('completed', true)
-            ->pluck('course_lesson_id')
-            ->toArray();
-
-        $completedLessons = count($completedLessonIds);
-
-        $progressPercentage = $totalLessons > 0
-            ? round(($completedLessons / $totalLessons) * 100)
-            : 0;
-
-        return view('mahasiswa.materi.index', compact(
-            'courses',
-            'totalLessons',
-            'completedLessons',
-            'completedLessonIds',
-            'progressPercentage'
-        ));
-    }
-
     /* MATERI_LANJUTKAN_TERAKHIR_V2 */
     public function continueLearning()
     {

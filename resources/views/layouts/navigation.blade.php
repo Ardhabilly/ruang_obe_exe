@@ -23,7 +23,7 @@
 
     $continueUrl = \Illuminate\Support\Facades\Route::has('mahasiswa.materi.lanjutkan')
         ? route('mahasiswa.materi.lanjutkan')
-        : route('mahasiswa.materi.index');
+        : route('mahasiswa.materi.lanjutkan');
 @endphp
 
 <nav
@@ -202,18 +202,7 @@
                     <p class="mt-2 px-2 text-sm font-semibold leading-5 text-white">
                         {{ $courseTitle }}
                     </p>
-
-                    <a
-                        href="{{ route('mahasiswa.materi.index') }}"
-                        @click="sidebarOpen = false"
-                        class="mt-3 inline-flex items-center px-2 text-xs font-medium text-cyan-200 transition hover:text-cyan-100"
-                    >
-                        Lihat daftar materi
-                        <svg class="ml-1 h-3.5 w-3.5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 5 7 7-7 7" />
-                        </svg>
-                    </a>
-                </div>
+</div>
 
                 <ul class="space-y-2 font-medium">
                     @forelse ($materialSidebar['modules'] as $module)

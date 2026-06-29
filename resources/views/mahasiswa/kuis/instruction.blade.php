@@ -123,12 +123,7 @@
                 </div>
 
                 <div class="flex flex-wrap gap-3">
-                    <a href="{{ route('mahasiswa.materi.index') }}"
-                       class="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-black text-white hover:bg-white/10">
-                        Kembali ke Materi
-                    </a>
-
-                    @if ($inProgressAttempt)
+@if ($inProgressAttempt)
                         <a href="{{ route('mahasiswa.kuis.attempt', $inProgressAttempt) }}"
                            class="rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-black text-slate-950 shadow-lg shadow-cyan-500/20 hover:bg-cyan-300">
                             Lanjutkan Kuis

@@ -41,15 +41,7 @@
             @endif
 
             <section class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-6 backdrop-blur-xl sm:p-7">
-                <a href="{{ route('mahasiswa.materi.index') }}" class="inline-flex items-center gap-2 text-sm font-bold text-cyan-200 transition hover:text-cyan-100">
-                    <svg class="h-4 w-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m15 19-7-7 7-7" />
-                    </svg>
-
-                    Daftar Materi
-                </a>
-
-                <div class="mt-5 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+<div class="mt-5 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div class="min-w-0">
                         <p class="text-sm font-semibold text-cyan-200">
                             {{ $lesson->module->title }}
@@ -156,10 +148,7 @@
                             </button>
                         @endif
                     @else
-                        <a href="{{ route('mahasiswa.materi.index') }}" class="inline-flex w-full items-center justify-center rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-300 sm:w-auto">
-                            Kembali ke Daftar Materi
-                        </a>
-                    @endif
+@endif
                 </div>
             </div>
         </div>
