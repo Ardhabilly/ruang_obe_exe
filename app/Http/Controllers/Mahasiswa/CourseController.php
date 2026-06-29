@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Quiz;
+use App\Models\QuizAttempt;
 
 class CourseController extends Controller
 {
@@ -97,7 +98,42 @@ class CourseController extends Controller
                 ->with('warning', 'Materi tersebut masih terkunci. Selesaikan materi sebelumnya terlebih dahulu.');
         }
 
-        $accessibleLessonIds = $this->getAccessibleLessonIds($allLessons, $completedLessonIds);
+        /*
+        |--------------------------------------------------------------------------
+        | Kuis Bab sebagai Penutup Bab
+        |--------------------------------------------------------------------------
+        | Sebelum subbab pada bab baru dapat diakses, seluruh kuis pada bab
+        | sebelumnya harus telah selesai dengan status lulus KKM.
+        */
+        /* CHAPTER_QUIZ_GATE_V1 */
+        $chapterQuizGate = $this->chapterQuizGateForLesson($lesson, $user->id);
+
+        if ($chapterQuizGate) {
+            $requiredModule = $chapterQuizGate['module'];
+            $requiredBab = (int) $requiredModule->order_number;
+
+            if ($chapterQuizGate['quiz']) {
+                return redirect()
+                    ->route('mahasiswa.kuis.instruction', $chapterQuizGate['quiz'])
+                    ->with(
+                        'warning',
+                        "Bab berikutnya masih terkunci. Selesaikan dan capai KKM pada Kuis Bab {$requiredBab} terlebih dahulu."
+                    );
+            }
+
+            return redirect()
+                ->route('mahasiswa.kelas.index')
+                ->with(
+                    'warning',
+                    "Kuis Bab {$requiredBab} belum tersedia untuk kelas Anda. Bergabunglah ke kelas atau hubungi dosen."
+                );
+        }
+
+        $accessibleLessonIds = $this->getAccessibleLessonIds(
+            $allLessons,
+            $completedLessonIds,
+            $user->id
+        );
 
         $progress = UserLessonProgress::firstOrCreate(
             [
@@ -305,14 +341,93 @@ class CourseController extends Controller
             });
     }
 
-    private function getAccessibleLessonIds(Collection $allLessons, array $completedLessonIds): array
+
+    /*
+    |--------------------------------------------------------------------------
+    | Pemeriksaan Prasyarat Kuis Bab
+    |--------------------------------------------------------------------------
+    */
+    /* CHAPTER_QUIZ_GATE_HELPER_V1 */
+    private function chapterQuizGateForLesson(CourseLesson $lesson, int $userId): ?array
     {
+        $lesson->loadMissing('module.course');
+
+        $currentModule = $lesson->module;
+        $course = $currentModule?->course;
+
+        if (! $currentModule || ! $course) {
+            return null;
+        }
+
+        $previousModules = $course->modules()
+            ->where('order_number', '<', $currentModule->order_number)
+            ->orderBy('order_number')
+            ->get();
+
+        if ($previousModules->isEmpty()) {
+            return null;
+        }
+
+        $joinedClassIds = \App\Models\ClassMember::query()
+            ->where('user_id', $userId)
+            ->pluck('class_group_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        foreach ($previousModules as $previousModule) {
+            $chapterQuizzes = Quiz::query()
+                ->whereIn('class_group_id', $joinedClassIds)
+                ->where('course_module_id', $previousModule->id)
+                ->where('type', 'kuis_bab')
+                ->where('is_active', true)
+                ->orderBy('id')
+                ->get();
+
+            if ($chapterQuizzes->isEmpty()) {
+                return [
+                    'module' => $previousModule,
+                    'quiz' => null,
+                ];
+            }
+
+            $hasPassedQuiz = QuizAttempt::query()
+                ->where('user_id', $userId)
+                ->whereIn('quiz_id', $chapterQuizzes->pluck('id'))
+                ->whereIn('status', ['submitted', 'auto_submitted'])
+                ->where('is_passed', true)
+                ->exists();
+
+            if (! $hasPassedQuiz) {
+                return [
+                    'module' => $previousModule,
+                    'quiz' => $chapterQuizzes->first(),
+                ];
+            }
+        }
+
+        return null;
+    }
+    /* CHAPTER_QUIZ_ACCESSIBILITY_V1 */
+    private function getAccessibleLessonIds(
+        Collection $allLessons,
+        array $completedLessonIds,
+        int $userId
+    ): array {
         $accessibleLessonIds = [];
 
         foreach ($allLessons as $lesson) {
-            $accessibleLessonIds[] = $lesson->id;
+            /*
+             * Saat memasuki bab baru, kuis bab sebelumnya harus sudah lulus.
+             * Dengan demikian sidebar menampilkan Bab berikutnya dalam status
+             * terkunci sebelum mahasiswa memenuhi prasyarat kuis.
+             */
+            if ($this->chapterQuizGateForLesson($lesson, $userId)) {
+                break;
+            }
 
-            if (! in_array($lesson->id, $completedLessonIds, true)) {
+            $accessibleLessonIds[] = (int) $lesson->id;
+
+            if (! in_array((int) $lesson->id, $completedLessonIds, true)) {
                 break;
             }
         }

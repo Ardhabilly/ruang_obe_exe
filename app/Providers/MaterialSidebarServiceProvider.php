@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Models\Course;
 use App\Models\CourseLesson;
 use App\Models\Quiz;
+use App\Models\QuizAttempt;
 use App\Models\UserLessonProgress;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\View;
@@ -14,8 +15,8 @@ use Illuminate\Support\ServiceProvider;
 |--------------------------------------------------------------------------
 | MaterialSidebarServiceProvider
 |--------------------------------------------------------------------------
-| Menyediakan data untuk sidebar materi pada layout global. Oleh karena itu,
-| halaman subbab tidak perlu lagi memiliki sidebar sendiri.
+| Menyediakan data sidebar materi pada layout global. Sidebar menampilkan
+| penguncian bab berdasarkan subbab dan kuis bab yang telah lulus.
 |--------------------------------------------------------------------------
 */
 class MaterialSidebarServiceProvider extends ServiceProvider
@@ -92,19 +93,6 @@ class MaterialSidebarServiceProvider extends ServiceProvider
                 ->map(fn ($id) => (int) $id)
                 ->all();
 
-            $accessibleLessonIds = [];
-            $lockRemainingLessons = false;
-
-            foreach ($orderedLessons as $lesson) {
-                if (! $lockRemainingLessons) {
-                    $accessibleLessonIds[] = (int) $lesson->id;
-                }
-
-                if (! in_array((int) $lesson->id, $completedLessonIds, true)) {
-                    $lockRemainingLessons = true;
-                }
-            }
-
             $joinedClassIds = $user->joinedClassGroups()
                 ->pluck('class_groups.id')
                 ->map(fn ($id) => (int) $id)
@@ -115,18 +103,40 @@ class MaterialSidebarServiceProvider extends ServiceProvider
                 ->map(fn ($id) => (int) $id)
                 ->all();
 
+            $chapterQuizzes = collect();
             $quizzesByModule = collect();
+            $passedQuizModuleIds = [];
 
             if (! empty($joinedClassIds) && ! empty($moduleIds)) {
-                $quizzesByModule = Quiz::query()
+                $chapterQuizzes = Quiz::query()
                     ->withCount('questions')
                     ->whereIn('class_group_id', $joinedClassIds)
                     ->whereIn('course_module_id', $moduleIds)
                     ->where('type', 'kuis_bab')
                     ->where('is_active', true)
                     ->orderBy('course_module_id')
-                    ->get()
-                    ->map(function (Quiz $quiz) use ($modules, $completedLessonIds) {
+                    ->orderBy('id')
+                    ->get();
+
+                $passedQuizIds = QuizAttempt::query()
+                    ->where('user_id', $user->id)
+                    ->whereIn('quiz_id', $chapterQuizzes->pluck('id'))
+                    ->whereIn('status', ['submitted', 'auto_submitted'])
+                    ->where('is_passed', true)
+                    ->pluck('quiz_id')
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->all();
+
+                $passedQuizModuleIds = $chapterQuizzes
+                    ->filter(fn (Quiz $quiz) => in_array((int) $quiz->id, $passedQuizIds, true))
+                    ->pluck('course_module_id')
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->all();
+
+                $quizzesByModule = $chapterQuizzes
+                    ->map(function (Quiz $quiz) use ($modules, $completedLessonIds, $passedQuizIds) {
                         $module = $modules->firstWhere('id', $quiz->course_module_id);
 
                         $moduleLessonIds = $module
@@ -135,6 +145,8 @@ class MaterialSidebarServiceProvider extends ServiceProvider
 
                         $quiz->is_unlocked = ! empty($moduleLessonIds)
                             && empty(array_diff($moduleLessonIds, $completedLessonIds));
+
+                        $quiz->is_passed = in_array((int) $quiz->id, $passedQuizIds, true);
 
                         $quiz->locked_reason = $quiz->is_unlocked
                             ? null
@@ -145,6 +157,35 @@ class MaterialSidebarServiceProvider extends ServiceProvider
                     ->groupBy('course_module_id');
             }
 
+            /*
+             * Subbab pada bab selanjutnya hanya dapat diakses bila kuis pada
+             * bab sebelumnya telah lulus KKM.
+             */
+            $accessibleLessonIds = [];
+            $lockRemainingLessons = false;
+            $previousModuleId = null;
+
+            foreach ($modules as $module) {
+                if (
+                    $previousModuleId !== null
+                    && ! in_array((int) $previousModuleId, $passedQuizModuleIds, true)
+                ) {
+                    $lockRemainingLessons = true;
+                }
+
+                foreach ($module->lessons as $lesson) {
+                    if (! $lockRemainingLessons) {
+                        $accessibleLessonIds[] = (int) $lesson->id;
+                    }
+
+                    if (! in_array((int) $lesson->id, $completedLessonIds, true)) {
+                        $lockRemainingLessons = true;
+                    }
+                }
+
+                $previousModuleId = (int) $module->id;
+            }
+
             $finalEvaluations = collect();
 
             if (! empty($joinedClassIds)) {
@@ -153,6 +194,12 @@ class MaterialSidebarServiceProvider extends ServiceProvider
                     ->map(fn ($id) => (int) $id)
                     ->all();
 
+                $allLessonsComplete = ! empty($allLessonIds)
+                    && empty(array_diff($allLessonIds, $completedLessonIds));
+
+                $allChapterQuizzesPassed = ! empty($moduleIds)
+                    && empty(array_diff($moduleIds, $passedQuizModuleIds));
+
                 $finalEvaluations = Quiz::query()
                     ->withCount('questions')
                     ->whereIn('class_group_id', $joinedClassIds)
@@ -160,13 +207,15 @@ class MaterialSidebarServiceProvider extends ServiceProvider
                     ->where('is_active', true)
                     ->orderBy('id')
                     ->get()
-                    ->map(function (Quiz $quiz) use ($allLessonIds, $completedLessonIds) {
-                        $quiz->is_unlocked = ! empty($allLessonIds)
-                            && empty(array_diff($allLessonIds, $completedLessonIds));
+                    ->map(function (Quiz $quiz) use ($allLessonsComplete, $allChapterQuizzesPassed) {
+                        $quiz->is_unlocked = $allLessonsComplete
+                            && $allChapterQuizzesPassed;
 
-                        $quiz->locked_reason = $quiz->is_unlocked
-                            ? null
-                            : 'Selesaikan seluruh materi Bab 1 sampai Bab 4 terlebih dahulu.';
+                        $quiz->locked_reason = ! $allLessonsComplete
+                            ? 'Selesaikan seluruh materi Bab 1 sampai Bab 4 terlebih dahulu.'
+                            : (! $allChapterQuizzesPassed
+                                ? 'Selesaikan dan capai KKM pada seluruh kuis bab terlebih dahulu.'
+                                : null);
 
                         return $quiz;
                     });

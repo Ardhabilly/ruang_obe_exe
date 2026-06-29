@@ -21,7 +21,7 @@ class QuizController extends Controller
 
         if (! $this->isQuizUnlocked($quiz, $user->id)) {
             return redirect()
-                ->route('mahasiswa.materi.index')
+                ->route('mahasiswa.materi.lanjutkan')
                 ->with('warning', 'Kuis masih terkunci. Selesaikan seluruh materi pada bab terkait terlebih dahulu.');
         }
 
@@ -76,7 +76,7 @@ class QuizController extends Controller
 
         if (! $this->isQuizUnlocked($quiz, $user->id)) {
             return redirect()
-                ->route('mahasiswa.materi.index')
+                ->route('mahasiswa.materi.lanjutkan')
                 ->with('warning', 'Kuis masih terkunci.');
         }
 
@@ -343,12 +343,42 @@ class QuizController extends Controller
             && $attempt->is_passed
             && $rawScore > $attempt->score;
 
+        /* NEXT_LEARNING_ACTION_AFTER_CHAPTER_QUIZ_V1 */
+        $nextLessonAfterQuiz = null;
+        $nextEvaluationAfterQuiz = null;
+
+        if ($attempt->is_passed && $attempt->quiz->type === 'kuis_bab') {
+            $quizModule = $attempt->quiz->module;
+
+            if ($quizModule) {
+                $nextLessonAfterQuiz = CourseLesson::query()
+                    ->join('course_modules', 'course_lessons.course_module_id', '=', 'course_modules.id')
+                    ->where('course_modules.course_id', $quizModule->course_id)
+                    ->where('course_modules.order_number', '>', $quizModule->order_number)
+                    ->orderBy('course_modules.order_number')
+                    ->orderBy('course_lessons.order_number')
+                    ->select('course_lessons.*')
+                    ->first();
+
+                if (! $nextLessonAfterQuiz) {
+                    $nextEvaluationAfterQuiz = Quiz::query()
+                        ->where('class_group_id', $attempt->quiz->class_group_id)
+                        ->where('type', 'evaluasi_akhir')
+                        ->where('is_active', true)
+                        ->orderBy('id')
+                        ->first();
+                }
+            }
+        }
+
         return view('mahasiswa.kuis.result', compact(
             'attempt',
             'canRemedial',
             'nextAttemptNumber',
             'rawScore',
-            'remedialScoreCapped'
+            'remedialScoreCapped',
+            'nextLessonAfterQuiz',
+            'nextEvaluationAfterQuiz'
         ));
     }
 
@@ -367,19 +397,36 @@ class QuizController extends Controller
         abort_if($attempt->user_id !== Auth::id(), 403, 'Anda tidak memiliki akses ke attempt kuis ini.');
     }
 
+    /* FINAL_EVALUATION_CHAPTER_QUIZ_GATE_V1 */
     private function isQuizUnlocked(Quiz $quiz, int $userId): bool
     {
         if ($quiz->type === 'evaluasi_akhir') {
             $lessonIds = CourseLesson::pluck('id')->toArray();
-        } else {
-            if (! $quiz->course_module_id) {
+
+            if (empty($lessonIds)) {
                 return false;
             }
 
-            $lessonIds = CourseLesson::where('course_module_id', $quiz->course_module_id)
-                ->pluck('id')
-                ->toArray();
+            $completedCount = UserLessonProgress::where('user_id', $userId)
+                ->whereIn('course_lesson_id', $lessonIds)
+                ->where('completed', true)
+                ->distinct()
+                ->count('course_lesson_id');
+
+            if ($completedCount !== count($lessonIds)) {
+                return false;
+            }
+
+            return $this->hasPassedAllChapterQuizzes($quiz, $userId);
         }
+
+        if (! $quiz->course_module_id) {
+            return false;
+        }
+
+        $lessonIds = CourseLesson::where('course_module_id', $quiz->course_module_id)
+            ->pluck('id')
+            ->toArray();
 
         if (empty($lessonIds)) {
             return false;
@@ -392,6 +439,60 @@ class QuizController extends Controller
             ->count('course_lesson_id');
 
         return $completedCount === count($lessonIds);
+    }
+
+    private function hasPassedAllChapterQuizzes(Quiz $finalQuiz, int $userId): bool
+    {
+        $moduleIds = CourseLesson::query()
+            ->pluck('course_module_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($moduleIds)) {
+            return false;
+        }
+
+        $chapterQuizzes = Quiz::query()
+            ->where('class_group_id', $finalQuiz->class_group_id)
+            ->whereIn('course_module_id', $moduleIds)
+            ->where('type', 'kuis_bab')
+            ->where('is_active', true)
+            ->get(['id', 'course_module_id']);
+
+        /*
+         * Setiap bab harus mempunyai kuis aktif pada kelas yang sama.
+         */
+        $availableQuizModules = $chapterQuizzes
+            ->pluck('course_module_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->all();
+
+        if (! empty(array_diff($moduleIds, $availableQuizModules))) {
+            return false;
+        }
+
+        $passedQuizIds = QuizAttempt::query()
+            ->where('user_id', $userId)
+            ->whereIn('quiz_id', $chapterQuizzes->pluck('id'))
+            ->whereIn('status', ['submitted', 'auto_submitted'])
+            ->where('is_passed', true)
+            ->pluck('quiz_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->all();
+
+        $passedQuizModules = $chapterQuizzes
+            ->filter(fn (Quiz $chapterQuiz) => in_array((int) $chapterQuiz->id, $passedQuizIds, true))
+            ->pluck('course_module_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->all();
+
+        return empty(array_diff($moduleIds, $passedQuizModules));
     }
 
     private function finalizeAttempt(QuizAttempt $attempt, string $status): void

@@ -91,7 +91,24 @@
                     </div>
 
                     <div class="flex flex-wrap gap-3">
-@if ($canRemedial)
+                        {{-- NEXT_LEARNING_ACTION_AFTER_CHAPTER_QUIZ_VIEW_V1 --}}
+                        @if ($attempt->is_passed && $nextLessonAfterQuiz)
+                            <a
+                                href="{{ route('mahasiswa.materi.show', $nextLessonAfterQuiz->slug) }}"
+                                class="rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-300"
+                            >
+                                Lanjut ke Bab Berikutnya
+                            </a>
+                        @elseif ($attempt->is_passed && $nextEvaluationAfterQuiz)
+                            <a
+                                href="{{ route('mahasiswa.kuis.instruction', $nextEvaluationAfterQuiz) }}"
+                                class="rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-300"
+                            >
+                                Lanjut ke Evaluasi Akhir
+                            </a>
+                        @endif
+
+                        @if ($canRemedial)
                             <a href="{{ route('mahasiswa.kuis.instruction', $attempt->quiz) }}"
                                class="rounded-2xl bg-yellow-400 px-5 py-3 text-sm font-black text-slate-950 hover:bg-yellow-300">
                                 Ikuti Remedial Ke-{{ $nextAttemptNumber }}
