@@ -30,8 +30,26 @@
         ? $simulation32FeedbackRaw['_meta']
         : [];
 
+    /* SUBBAB_3_2_BANTUAN_TAMPIL_JAWABAN_FIX
+     *
+     * Data bantuan dari versi yang sedang dipakai memiliki field keputusan
+     * fase1_q1_pivot dan field hasil fase4_pivot_hasil_45. Pada hasil bantuan
+     * yang sudah tersimpan, metadata definition_version belum selalu tersedia.
+     * Struktur field tersebut digunakan sebagai penanda aman agar jawaban yang
+     * telah diungkapkan tetap ditampilkan pada kolom terkait.
+     */
+    $simulation32HasCurrentDecisionStructure = isset($simulation32Feedback['fase1_q1_pivot'])
+        || array_key_exists('fase1_q1_pivot', $simulation32StoredAnswers)
+        || array_key_exists('fase4_pivot_hasil_45', $simulation32StoredAnswers);
+
     $simulation32UsesComponentAttemptScope = ($simulation32Meta['attempt_scope'] ?? null) === 'component'
-        && ($simulation32Meta['definition_version'] ?? null) === $simulation32DefinitionVersion;
+        && (
+            ($simulation32Meta['definition_version'] ?? null) === $simulation32DefinitionVersion
+            || (
+                empty($simulation32Meta['definition_version'] ?? null)
+                && $simulation32HasCurrentDecisionStructure
+            )
+        );
 
     if (! $simulation32UsesComponentAttemptScope && $simulation32Submission) {
         $simulation32Answers = $simulation32OldAnswers;
@@ -422,7 +440,7 @@
 
     $simulation32DecisionAnswers = collect($simulation32Decisions)
         ->mapWithKeys(fn (array $decision, string $key) => [
-            $key => (string) ($simulation32Answers[$key] ?? ''),
+            $key => strtolower(trim((string) ($simulation32Answers[$key] ?? ''))),
         ])
         ->all();
 
