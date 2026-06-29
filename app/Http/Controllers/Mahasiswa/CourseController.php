@@ -322,7 +322,11 @@ class CourseController extends Controller
             'aktivitas-3-1-eselon-baris',
             'contoh-simulasi-3-2-eselon-baris',
             'contoh-simulasi-3-3-substitusi-balik',
+                        /* SUBBAB_4_1_ESELON_TEREDUKSI_ATTEMPT_KEY_START */
+            'aktivitas-4-1-eselon-tereduksi',
+            /* SUBBAB_4_1_ESELON_TEREDUKSI_ATTEMPT_KEY_END */
             'aktivitas-3-2-eliminasi-gauss',
+            'contoh-simulasi-4-2-eselon-baris-tereduksi',
         ];
 
         if (! in_array($submission->practice_key, $componentAttemptPracticeKeys, true)) {
@@ -384,6 +388,17 @@ class CourseController extends Controller
                 'contoh-simulasi-3-3-substitusi-balik' => 'Contoh Simulasi 3.3 - Substitusi Balik',
                 'aktivitas-3-2-eliminasi-gauss' => 'Aktivitas 3.2 - Menyelesaikan SPL dengan Eliminasi Gauss',
             ],
+
+                        /* SUBBAB_4_1_ESELON_TEREDUKSI_REQUIRED_START */
+            'algoritma-syarat-matriks-eselon-baris-tereduksi' => [
+                'aktivitas-4-1-eselon-tereduksi' => 'Aktivitas 4.1 - Uji Visual Matriks Eselon Baris Tereduksi',
+            ],
+            /* SUBBAB_4_1_ESELON_TEREDUKSI_REQUIRED_END */
+'simulasi-mengubah-matriks-menjadi-eselon-baris-tereduksi' => [
+    'contoh-simulasi-4-2-eselon-baris-tereduksi' => 'Contoh Simulasi 4.2 - Mengubah Matriks Menjadi Eselon Baris Tereduksi',
+],
+
+
 
             default => [],
         };

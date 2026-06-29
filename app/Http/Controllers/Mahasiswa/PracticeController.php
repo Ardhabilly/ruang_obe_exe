@@ -480,6 +480,17 @@ class PracticeController extends Controller
     private function getPracticeDefinition(string $practiceKey): ?array
     {
 
+                /* SUBBAB_4_1_ESELON_TEREDUKSI_CALL_START */
+        if ($definition = $this->getSubbab41PracticeDefinition($practiceKey)) {
+            return $definition;
+        }
+        /* SUBBAB_4_1_ESELON_TEREDUKSI_CALL_END */
+
+
+        if ($definition = $this->getSubbab42PracticeDefinition($practiceKey)) {
+            return $definition;
+        }
+
         if ($definition = $this->getSubbab33PracticeDefinition($practiceKey)) {
             return $definition;
         }        if ($definition = $this->getSubbab32PracticeDefinition($practiceKey)) {
@@ -2699,6 +2710,316 @@ class PracticeController extends Controller
                     'a_f4_hasil_y' => $valueQuestion('0', 'Nilai akhir y diperoleh dari Baris-2.'),
                     'a_f4_hasil_z' => $valueQuestion('1', 'Nilai akhir z diperoleh dari Baris-3.'),
                 ],
+            ],
+
+            default => null,
+        };
+    }
+
+
+        /* SUBBAB_4_1_ESELON_TEREDUKSI_METHOD_START */
+    private function getSubbab41PracticeDefinition(string $practiceKey): ?array
+    {
+        return match ($practiceKey) {
+            'aktivitas-4-1-eselon-tereduksi' => [
+                'title' => 'Aktivitas 4.1 - Uji Visual Matriks Eselon Baris Tereduksi',
+                'type' => 'aktivitas',
+                'definition_version' => 'subbab41_eselon_tereduksi_v2',
+                'max_score' => 100,
+                'groups' => [
+                    'pengelompokan_matriks' => [
+                        'number' => 1,
+                        'fields' => [
+                            'matrix_a',
+                            'matrix_b',
+                            'matrix_c',
+                            'matrix_d',
+                            'matrix_e',
+                        ],
+                        'points' => 100,
+                    ],
+                ],
+                'questions' => [
+                    'matrix_a' => [
+                        'accepted_answers' => ['tereduksi'],
+                        'display_answer' => 'Zona Eselon Baris Tereduksi',
+                        'feedback_correct' => 'Benar. Setiap kolom yang memuat 1 utama hanya memiliki elemen nol selain 1 utama tersebut.',
+                        'feedback_wrong' => 'Belum tepat. Periksa setiap kolom yang memuat 1 utama, termasuk elemen yang berada di atasnya.',
+                    ],
+                    'matrix_b' => [
+                        'accepted_answers' => ['eselon'],
+                        'display_answer' => 'Zona Eselon Baris',
+                        'feedback_correct' => 'Benar. Matriks sudah berbentuk eselon baris, tetapi belum tereduksi penuh.',
+                        'feedback_wrong' => 'Belum tepat. Periksa kembali elemen bukan nol yang masih berada di atas 1 utama.',
+                    ],
+                    'matrix_c' => [
+                        'accepted_answers' => ['eselon'],
+                        'display_answer' => 'Zona Eselon Baris',
+                        'feedback_correct' => 'Benar. Matriks sudah berbentuk eselon baris, tetapi belum tereduksi penuh.',
+                        'feedback_wrong' => 'Belum tepat. Perhatikan apakah semua kolom yang memuat 1 utama sudah memiliki nol di bagian atasnya.',
+                    ],
+                    'matrix_d' => [
+                        'accepted_answers' => ['eselon'],
+                        'display_answer' => 'Zona Eselon Baris',
+                        'feedback_correct' => 'Benar. Matriks sudah berbentuk eselon baris, tetapi belum tereduksi penuh.',
+                        'feedback_wrong' => 'Belum tepat. Periksa kembali elemen selain 1 utama pada setiap kolom pivot.',
+                    ],
+                    'matrix_e' => [
+                        'accepted_answers' => ['tereduksi'],
+                        'display_answer' => 'Zona Eselon Baris Tereduksi',
+                        'feedback_correct' => 'Benar. Matriks memenuhi syarat eselon baris tereduksi dan baris nol berada di bagian bawah.',
+                        'feedback_wrong' => 'Belum tepat. Periksa posisi baris nol serta elemen pada kolom yang memuat 1 utama.',
+                    ],
+                ],
+            ],
+            default => null,
+        };
+    }
+    /* SUBBAB_4_1_ESELON_TEREDUKSI_METHOD_END */
+
+
+    /* SUBBAB_4_2_GAUSS_JORDAN_V1 */
+    private function getSubbab42PracticeDefinition(string $practiceKey): ?array
+    {
+        $fractionAnswers = static function (string $value): array {
+            $answers = [$value];
+
+            if (str_contains($value, '/')) {
+                [$numerator, $denominator] = explode('/', $value, 2);
+
+                $answers[] = $numerator . ' per ' . $denominator;
+                $answers[] = $numerator . 'per' . $denominator;
+                $answers[] = '\\frac{' . $numerator . '}{' . $denominator . '}';
+            }
+
+            return array_values(array_unique($answers));
+        };
+
+        $valueQuestion = static function (string $value, string $feedback) use ($fractionAnswers): array {
+            return [
+                'accepted_answers' => $fractionAnswers($value),
+                'display_answer' => $value,
+                'feedback_correct' => 'Benar.',
+                'feedback_wrong' => $feedback,
+            ];
+        };
+
+        $decisionQuestion = static function (string $answer, string $description): array {
+            return [
+                'accepted_answers' => [$answer],
+                'display_answer' => strtoupper($answer),
+                'feedback_correct' => 'Benar. ' . $description,
+                'feedback_wrong' => 'Belum tepat. Periksa kembali nilai elemen pada posisi yang ditanyakan.',
+            ];
+        };
+
+        $operationQuestion = static function (array $accepted, string $display, string $feedback): array {
+            return [
+                'accepted_answers' => $accepted,
+                'display_answer' => $display,
+                'feedback_correct' => 'Benar. Notasi operasi sudah sesuai.',
+                'feedback_wrong' => $feedback,
+            ];
+        };
+
+        $operations = [
+            'f5a' => [
+                'notation' => 'f5a_notasi',
+                'notation_answers' => [
+                    'b3←5b4+b3', 'b_3←5b_4+b_3',
+                    'b3<-5b4+b3', 'b_3<-5b_4+b_3',
+                    'b3\\leftarrow5b4+b3', 'b_3\\leftarrow5b_4+b_3',
+                ],
+                'notation_display' => 'B_3 \leftarrow 5B_4 + B_3',
+                'coefficient' => 'f5a_k',
+                'coefficient_value' => '5',
+                'product' => ['0', '0', '0', '5', '25/3'],
+                'result' => ['0', '0', '1', '0', '4/3'],
+                'decision' => 'f5_q1_baris3',
+                'decision_answer' => 'tidak',
+                'decision_description' => 'Elemen Baris-3 Kolom-4 bernilai -5 sehingga perlu dinolkan.',
+                'feedback' => 'Periksa kembali operasi B3 ← 5B4 + B3.',
+            ],
+            'f5b' => [
+                'notation' => 'f5b_notasi',
+                'notation_answers' => [
+                    'b1←b4+b1', 'b_1←b_4+b_1',
+                    'b1<-b4+b1', 'b_1<-b_4+b_1',
+                    'b1\\leftarrowb4+b1', 'b_1\\leftarrowb_4+b_1',
+                ],
+                'notation_display' => 'B_1 \leftarrow B_4 + B_1',
+                'coefficient' => 'f5b_k',
+                'coefficient_value' => '1',
+                'product' => ['0', '0', '0', '1', '5/3'],
+                'result' => ['1', '1', '2', '0', '20/3'],
+                'decision' => 'f5_q3_baris1',
+                'decision_answer' => 'tidak',
+                'decision_description' => 'Elemen Baris-1 Kolom-4 bernilai -1 sehingga perlu dinolkan.',
+                'feedback' => 'Periksa kembali operasi B1 ← B4 + B1.',
+            ],
+            'f6a' => [
+                'notation' => 'f6a_notasi',
+                'notation_answers' => [
+                    'b2←-b3+b2', 'b_2←-b_3+b_2',
+                    'b2<- -b3+b2', 'b_2<- -b_3+b_2',
+                    'b2\\leftarrow-b3+b2', 'b_2\\leftarrow-b_3+b_2',
+                ],
+                'notation_display' => 'B_2 \leftarrow -B_3 + B_2',
+                'coefficient' => 'f6a_k',
+                'coefficient_value' => '-1',
+                'product' => ['0', '0', '-1', '0', '-4/3'],
+                'result' => ['0', '1', '0', '0', '11/3'],
+                'decision' => 'f6_q1_baris2',
+                'decision_answer' => 'tidak',
+                'decision_description' => 'Elemen Baris-2 Kolom-3 bernilai 1 sehingga perlu dinolkan.',
+                'feedback' => 'Periksa kembali operasi B2 ← -B3 + B2.',
+            ],
+            'f6b' => [
+                'notation' => 'f6b_notasi',
+                'notation_answers' => [
+                    'b1←-2b3+b1', 'b_1←-2b_3+b_1',
+                    'b1<- -2b3+b1', 'b_1<- -2b_3+b_1',
+                    'b1\\leftarrow-2b3+b1', 'b_1\\leftarrow-2b_3+b_1',
+                ],
+                'notation_display' => 'B_1 \leftarrow -2B_3 + B_1',
+                'coefficient' => 'f6b_k',
+                'coefficient_value' => '-2',
+                'product' => ['0', '0', '-2', '0', '-8/3'],
+                'result' => ['1', '1', '0', '0', '4'],
+                'decision' => 'f6_q2_baris1',
+                'decision_answer' => 'tidak',
+                'decision_description' => 'Elemen Baris-1 Kolom-3 bernilai 2 sehingga perlu dinolkan.',
+                'feedback' => 'Periksa kembali operasi B1 ← -2B3 + B1.',
+            ],
+            'f7a' => [
+                'notation' => 'f7a_notasi',
+                'notation_answers' => [
+                    'b1←-b2+b1', 'b_1←-b_2+b_1',
+                    'b1<- -b2+b1', 'b_1<- -b_2+b_1',
+                    'b1\\leftarrow-b2+b1', 'b_1\\leftarrow-b_2+b_1',
+                ],
+                'notation_display' => 'B_1 \leftarrow -B_2 + B_1',
+                'coefficient' => 'f7a_k',
+                'coefficient_value' => '-1',
+                'product' => ['0', '-1', '0', '0', '-11/3'],
+                'result' => ['1', '0', '0', '0', '1/3'],
+                'decision' => 'f7_q1_baris1',
+                'decision_answer' => 'tidak',
+                'decision_description' => 'Elemen Baris-1 Kolom-2 bernilai 1 sehingga perlu dinolkan.',
+                'feedback' => 'Periksa kembali operasi B1 ← -B2 + B1.',
+            ],
+        ];
+
+        $questions = [
+            'f5_q1_baris3' => $decisionQuestion(
+                'tidak',
+                'Elemen Baris-3 Kolom-4 bernilai -5 sehingga perlu dinolkan.'
+            ),
+            'f5_q2_baris2' => $decisionQuestion(
+                'ya',
+                'Elemen Baris-2 Kolom-4 sudah bernilai 0 sehingga tidak memerlukan operasi tambahan.'
+            ),
+            'f5_q3_baris1' => $decisionQuestion(
+                'tidak',
+                'Elemen Baris-1 Kolom-4 bernilai -1 sehingga perlu dinolkan.'
+            ),
+            'f6_q1_baris2' => $decisionQuestion(
+                'tidak',
+                'Elemen Baris-2 Kolom-3 bernilai 1 sehingga perlu dinolkan.'
+            ),
+            'f6_q2_baris1' => $decisionQuestion(
+                'tidak',
+                'Elemen Baris-1 Kolom-3 bernilai 2 sehingga perlu dinolkan.'
+            ),
+            'f7_q1_baris1' => $decisionQuestion(
+                'tidak',
+                'Elemen Baris-1 Kolom-2 bernilai 1 sehingga perlu dinolkan.'
+            ),
+        ];
+
+        $phase5Fields = ['f5_q1_baris3', 'f5_q2_baris2', 'f5_q3_baris1'];
+        $phase6Fields = ['f6_q1_baris2', 'f6_q2_baris1'];
+        $phase7Fields = ['f7_q1_baris1'];
+
+        foreach ($operations as $operationKey => $operation) {
+            $questions[$operation['notation']] = $operationQuestion(
+                $operation['notation_answers'],
+                $operation['notation_display'],
+                $operation['feedback']
+            );
+
+            $questions[$operation['coefficient']] = $valueQuestion(
+                $operation['coefficient_value'],
+                $operation['feedback']
+            );
+            foreach ($operation['product'] as $index => $value) {
+                $field = $operationKey . '_produk_' . ($index + 1);
+                $questions[$field] = $valueQuestion($value, $operation['feedback']);
+            }
+
+            foreach ($operation['result'] as $index => $value) {
+                $field = $operationKey . '_hasil_' . ($index + 1);
+                $questions[$field] = $valueQuestion($value, $operation['feedback']);
+            }
+
+            $fields = array_merge(
+                [$operation['notation'], $operation['coefficient']],
+                array_map(fn (int $index) => $operationKey . '_produk_' . $index, range(1, 5)),
+                array_map(fn (int $index) => $operationKey . '_hasil_' . $index, range(1, 5))
+            );
+
+            if (str_starts_with($operationKey, 'f5')) {
+                $phase5Fields = array_merge($phase5Fields, $fields);
+            } elseif (str_starts_with($operationKey, 'f6')) {
+                $phase6Fields = array_merge($phase6Fields, $fields);
+            } else {
+                $phase7Fields = array_merge($phase7Fields, $fields);
+            }
+        }
+
+        $finalValues = [
+            'final_11' => '1', 'final_12' => '0', 'final_13' => '0', 'final_14' => '0', 'final_15' => '1/3',
+            'final_21' => '0', 'final_22' => '1', 'final_23' => '0', 'final_24' => '0', 'final_25' => '11/3',
+            'final_31' => '0', 'final_32' => '0', 'final_33' => '1', 'final_34' => '0', 'final_35' => '4/3',
+            'final_41' => '0', 'final_42' => '0', 'final_43' => '0', 'final_44' => '1', 'final_45' => '5/3',
+        ];
+
+        foreach ($finalValues as $field => $value) {
+            $questions[$field] = $valueQuestion(
+                $value,
+                'Periksa kembali posisi 1 utama dan nilai pada kolom konstanta matriks akhir.'
+            );
+        }
+
+        return match ($practiceKey) {
+            'contoh-simulasi-4-2-eselon-baris-tereduksi' => [
+                'title' => 'Contoh Simulasi 4.2 - Mengubah Matriks Menjadi Eselon Baris Tereduksi',
+                'type' => 'contoh_simulasi',
+                'definition_version' => 'subbab-4-2-gauss-jordan-v1',
+                'max_score' => 0,
+                'groups' => [
+                    'fase_5' => [
+                        'number' => 5,
+                        'fields' => $phase5Fields,
+                        'points' => 0,
+                    ],
+                    'fase_6' => [
+                        'number' => 6,
+                        'fields' => $phase6Fields,
+                        'points' => 0,
+                    ],
+                    'fase_7' => [
+                        'number' => 7,
+                        'fields' => $phase7Fields,
+                        'points' => 0,
+                    ],
+                    'output_matriks' => [
+                        'number' => 8,
+                        'fields' => array_keys($finalValues),
+                        'points' => 0,
+                    ],
+                ],
+                'questions' => $questions,
             ],
 
             default => null,
