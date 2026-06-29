@@ -1974,6 +1974,7 @@ class PracticeController extends Controller
 
     /**
      * SUBBAB_3_2_SIMULASI_ESELON_BARIS_KEPUTUSAN_V3
+     * SUBBAB_3_2_NOTASI_ACUAN_DAHULU_V1
      */
     private function getSubbab32PracticeDefinition(string $practiceKey): ?array
     {
@@ -2165,8 +2166,8 @@ class PracticeController extends Controller
 
                     'fase1_target1a_notasi' => $operationQuestion(
                         'B_2',
-                        ['B_2 + B_1', 'B_1 + B_2', '1B_1 + B_2'],
-                        'B_2 \leftarrow B_2 + B_1',
+                        ['B_1 + B_2', 'B_2 + B_1', '1B_1 + B_2'],
+                        'B_2 \leftarrow B_1 + B_2',
                         'Gunakan Baris-1 untuk menghilangkan elemen -1 pada Baris-2 Kolom-1.'
                     ),
                     ...$valueQuestions([
@@ -2185,8 +2186,8 @@ class PracticeController extends Controller
 
                     'fase1_target1b_notasi' => $operationQuestion(
                         'B_3',
-                        ['B_3 - 2B_1', '-2B_1 + B_3', 'B_3 + (-2)B_1'],
-                        'B_3 \leftarrow B_3 - 2B_1',
+                        ['-2B_1 + B_3', 'B_3 - 2B_1', 'B_3 + (-2)B_1'],
+                        'B_3 \leftarrow -2B_1 + B_3',
                         'Gunakan kelipatan Baris-1 yang membuat 2 pada Baris-3 Kolom-1 menjadi 0.'
                     ),
                     ...$valueQuestions([
@@ -2205,8 +2206,8 @@ class PracticeController extends Controller
 
                     'fase1_target1c_notasi' => $operationQuestion(
                         'B_4',
-                        ['B_4 - B_1', '-B_1 + B_4', 'B_4 + (-1)B_1'],
-                        'B_4 \leftarrow B_4 - B_1',
+                        ['-B_1 + B_4', 'B_4 - B_1', 'B_4 + (-1)B_1'],
+                        'B_4 \leftarrow -B_1 + B_4',
                         'Gunakan Baris-1 untuk menghilangkan elemen 1 pada Baris-4 Kolom-1.'
                     ),
                     ...$valueQuestions([
@@ -2239,8 +2240,8 @@ class PracticeController extends Controller
 
                     'fase2_target2a_notasi' => $operationQuestion(
                         'B_3',
-                        ['B_3 + B_2', 'B_2 + B_3', '1B_2 + B_3'],
-                        'B_3 \leftarrow B_3 + B_2',
+                        ['B_2 + B_3', 'B_3 + B_2', '1B_2 + B_3'],
+                        'B_3 \leftarrow B_2 + B_3',
                         'Gunakan Baris-2 untuk menghilangkan elemen -1 pada Baris-3 Kolom-2.'
                     ),
                     ...$valueQuestions([
@@ -2273,8 +2274,8 @@ class PracticeController extends Controller
 
                     'fase3_target3a_notasi' => $operationQuestion(
                         'B_4',
-                        ['B_4 + B_3', 'B_3 + B_4', '1B_3 + B_4'],
-                        'B_4 \leftarrow B_4 + B_3',
+                        ['B_3 + B_4', 'B_4 + B_3', '1B_3 + B_4'],
+                        'B_4 \leftarrow B_3 + B_4',
                         'Gunakan Baris-3 untuk menghilangkan elemen -1 pada Baris-4 Kolom-3.'
                     ),
                     ...$valueQuestions([

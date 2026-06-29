@@ -104,12 +104,32 @@
         );
     };
 
+    /* SUBBAB_3_2_NOTASI_ACUAN_DAHULU_V1
+     *
+     * Pada operasi penjumlahan baris, kelipatan baris acuan ditulis lebih dulu,
+     * kemudian diikuti baris target. Contoh: B3 ← -2B1 + B3.
+     */
+    $simulation32PreferredRevealedNotation = [
+        'fase1_target1a_notasi' => 'B_2 \\leftarrow B_1 + B_2',
+        'fase1_target1b_notasi' => 'B_3 \\leftarrow -2B_1 + B_3',
+        'fase1_target1c_notasi' => 'B_4 \\leftarrow -B_1 + B_4',
+        'fase2_target2a_notasi' => 'B_3 \\leftarrow B_2 + B_3',
+        'fase3_target3a_notasi' => 'B_4 \\leftarrow B_3 + B_4',
+    ];
+
     $operationInput = function (string $fieldKey, string $label) use (
         $simulation32Answers,
+        $simulation32Feedback,
+        $simulation32PreferredRevealedNotation,
         $simulation32InputClass,
         $simulation32InputLocked
     ) {
         $value = (string) ($simulation32Answers[$fieldKey] ?? '');
+
+        if (($simulation32Feedback[$fieldKey]['state'] ?? null) === 'revealed'
+            && isset($simulation32PreferredRevealedNotation[$fieldKey])) {
+            $value = $simulation32PreferredRevealedNotation[$fieldKey];
+        }
         $hiddenId = 'subbab32-' . $fieldKey . '-hidden';
         $readOnly = $simulation32InputLocked($fieldKey) ? ' read-only' : '';
 
