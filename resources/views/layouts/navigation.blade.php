@@ -1,3 +1,7 @@
+{{-- DOSEN_NAVBAR_WRAPPER_V1 --}}
+@if (Auth::check() && Auth::user()->role === 'dosen')
+    @include('layouts.partials.dosen-navbar')
+@else
 {{-- FLOWBITE_TAILWIND_MATERIAL_SIDEBAR_V1 --}}
 @php
     $currentUser = Auth::user();
@@ -78,25 +82,27 @@
             </div>
 
             <div class="relative flex items-center" @click.outside="userMenuOpen = false">
-                <button
-                    type="button"
-                    @click="userMenuOpen = !userMenuOpen"
-                    class="flex items-center gap-2 rounded-full p-1 text-sm transition focus:outline-none focus:ring-4 focus:ring-slate-700"
-                    :aria-expanded="userMenuOpen"
-                >
-                    <span class="flex h-8 w-8 items-center justify-center rounded-full bg-cyan-400/15 text-xs font-black text-cyan-100">
-                        {{ $initial }}
-                    </span>
+                                    {{-- GLOBAL_PROFILE_MAHASISWA_STYLE_V3 --}}
+                    <button
+                        type="button"
+                        @click="userMenuOpen = !userMenuOpen"
+                        class="flex items-center gap-2 rounded-full p-1 text-sm transition focus:outline-none focus:ring-4 focus:ring-slate-700"
+                        :aria-expanded="userMenuOpen"
+                    >
+                        <span class="flex h-8 w-8 items-center justify-center rounded-full bg-cyan-400/15 text-xs font-black text-cyan-100">
+                            {{ $initial }}
+                        </span>
 
-                    <span class="hidden text-left sm:block">
-                        <span class="block max-w-32 truncate text-sm font-medium text-white">
-                            {{ $currentUser->name }}
+                        <span class="hidden text-left sm:block">
+                            <span class="block max-w-32 truncate text-sm font-medium text-white">
+                                {{ $currentUser->name }}
+                            </span>
+
+                            <span class="block text-xs text-slate-400">
+                                {{ $isMahasiswa ? 'Mahasiswa' : 'Dosen' }}
+                            </span>
                         </span>
-                        <span class="hidden text-left sm:block text-sm font text-slate-400 lg:inline">
-                            {{ ($isMahasiswa ? 'Mahasiswa' : 'Dosen') }}
-                        </span>
-                    </span>
-                </button>
+                    </button>
 
                 <div
                     x-cloak
@@ -432,3 +438,5 @@
         </div>
     </aside>
 </nav>
+
+@endif

@@ -53,7 +53,8 @@
 
     <!-- GLOBAL_TAILWIND_SIDEBAR_LAYOUT_V1 -->
     <!-- FLOWBITE_TAILWIND_LAYOUT_OFFSET_V1 -->
-    <div class="relative min-h-screen {{ $isCbtPage ? 'pt-0' : 'pt-16 sm:pl-64' }}">
+    <!-- DOSEN_NAVBAR_LAYOUT_OFFSET_V1 -->
+    <div class="relative min-h-screen {{ $isCbtPage ? 'pt-0' : ((auth()->check() && auth()->user()->role === 'dosen') ? 'pt-16' : 'pt-16 sm:pl-64') }}">
         @unless ($isCbtPage)
             @include('layouts.navigation')
         @endunless
