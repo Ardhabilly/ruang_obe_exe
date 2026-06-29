@@ -61,9 +61,9 @@
                                 </div>
                             </div>
 
-                            <span class="rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-xs font-bold text-cyan-100">
+                            {{-- <span class="rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-xs font-bold text-cyan-100">
                                 Terpadu
-                            </span>
+                            </span> --}}
                         </div>
 
                         <div class="mt-5 h-3 overflow-hidden rounded-full bg-white/10">
