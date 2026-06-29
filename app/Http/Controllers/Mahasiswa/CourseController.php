@@ -321,6 +321,8 @@ class CourseController extends Controller
             // SUBBAB_3_1_ESELON_BARIS_V1
             'aktivitas-3-1-eselon-baris',
             'contoh-simulasi-3-2-eselon-baris',
+            'contoh-simulasi-3-3-substitusi-balik',
+            'aktivitas-3-2-eliminasi-gauss',
         ];
 
         if (! in_array($submission->practice_key, $componentAttemptPracticeKeys, true)) {
@@ -377,6 +379,12 @@ class CourseController extends Controller
             'simulasi-mengubah-matriks-menjadi-eselon-baris' => [
                 'contoh-simulasi-3-2-eselon-baris' => 'Contoh Simulasi 3.2 - Mengubah Matriks Menjadi Eselon Baris',
             ],
+
+            'menyelesaikan-spl-dengan-metode-eliminasi-gauss' => [
+                'contoh-simulasi-3-3-substitusi-balik' => 'Contoh Simulasi 3.3 - Substitusi Balik',
+                'aktivitas-3-2-eliminasi-gauss' => 'Aktivitas 3.2 - Menyelesaikan SPL dengan Eliminasi Gauss',
+            ],
+
             default => [],
         };
     }

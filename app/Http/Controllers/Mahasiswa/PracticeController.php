@@ -479,7 +479,10 @@ class PracticeController extends Controller
 
     private function getPracticeDefinition(string $practiceKey): ?array
     {
-        if ($definition = $this->getSubbab32PracticeDefinition($practiceKey)) {
+
+        if ($definition = $this->getSubbab33PracticeDefinition($practiceKey)) {
+            return $definition;
+        }        if ($definition = $this->getSubbab32PracticeDefinition($practiceKey)) {
             return $definition;
         }
 
@@ -1482,23 +1485,89 @@ class PracticeController extends Controller
 
     private function normalize(mixed $value): string
     {
-        /* SUBBAB_3_2_MATHLIVE_NORMALIZATION */
         $value = strtolower(trim((string) $value));
-        $value = preg_replace_callback(
-            '/\\\\(?:d?frac)\{([^{}]+)\}\{([^{}]+)\}/',
-            static fn (array $matches) => $matches[1] . '/' . $matches[2],
-            $value
-        ) ?? $value;
+
+        /*
+        | MathLive dapat mengirim beberapa variasi pecahan:
+        | \frac{1}{2}, \frac12, \frac{1}2, dan \frac1{2}.
+        | Semua bentuk tersebut diseragamkan menjadi 1/2.
+        */
+        $fractionCommand = '(?:dfrac|tfrac|frac)';
+
+        for ($iteration = 0; $iteration < 5; $iteration++) {
+            $before = $value;
+
+            $value = preg_replace_callback(
+                '/\\\\(?:mathrm|mathit|operatorname|text)\s*\{([^{}]*)\}/u',
+                static fn (array $matches): string => $matches[1],
+                $value
+            ) ?? $value;
+
+            $value = preg_replace_callback(
+                '/\\\\' . $fractionCommand . '\s*\{([^{}]*)\}\s*\{([^{}]*)\}/u',
+                static fn (array $matches): string => trim($matches[1]) . '/' . trim($matches[2]),
+                $value
+            ) ?? $value;
+
+            $value = preg_replace_callback(
+                '/\\\\' . $fractionCommand . '\s*\{([^{}]*)\}\s*([+-]?\d+)/u',
+                static fn (array $matches): string => trim($matches[1]) . '/' . trim($matches[2]),
+                $value
+            ) ?? $value;
+
+            $value = preg_replace_callback(
+                '/\\\\' . $fractionCommand . '\s*([+-]?\d+)\s*\{([^{}]*)\}/u',
+                static fn (array $matches): string => trim($matches[1]) . '/' . trim($matches[2]),
+                $value
+            ) ?? $value;
+
+            $value = preg_replace_callback(
+                '/\\\\' . $fractionCommand . '\s*([+-]?\d)\s*([+-]?\d)(?!\d)/u',
+                static fn (array $matches): string => $matches[1] . '/' . $matches[2],
+                $value
+            ) ?? $value;
+
+            if ($value === $before) {
+                break;
+            }
+        }
+
+        $value = strtr($value, [
+            '½' => '1/2',
+            '⅓' => '1/3',
+            '⅔' => '2/3',
+            '¼' => '1/4',
+            '¾' => '3/4',
+            '⅕' => '1/5',
+            '⅖' => '2/5',
+            '⅗' => '3/5',
+            '⅘' => '4/5',
+        ]);
+
         $value = str_replace(
-            ['\\leftarrow', '\\gets', '<-', '→', '\\left', '\\right', '\\,', '\\!', '\\cdot', '\\times'],
-            ['←', '←', '←', '→', '', '', '', '', '*', '*'],
+            [
+                '\\longleftarrow', '\\leftarrow', '\\gets', '<-',
+                '\\rightarrow', '→',
+                '\\left', '\\right', '\\bigl', '\\bigr', '\\Bigl', '\\Bigr',
+                '\\,', '\\;', '\\:', '\\!', '\\quad', '\\qquad', '~',
+                '\\cdot', '\\times', '·', '×',
+            ],
+            [
+                '←', '←', '←', '←',
+                '→', '→',
+                '', '', '', '', '', '',
+                '', '', '', '', '', '', '',
+                '', '', '', '',
+            ],
             $value
         );
+
         $value = str_replace(['{', '}', '\\'], '', $value);
-        $value = str_replace(['√', '−', '–'], ['sqrt', '-', '-'], $value);
-        $value = str_replace(['₁', '₂', '₃'], ['1', '2', '3'], $value);
-        $value = str_replace(['_', '*', '(', ')'], '', $value);
-        $value = preg_replace('/\s+/', '', $value);
+        $value = str_replace(["\u{00A0}", "\u{2009}", "\u{202F}"], '', $value);
+        $value = str_replace(['√', '−', '–', '—'], ['sqrt', '-', '-', '-'], $value);
+        $value = str_replace(['₁', '₂', '₃', '₄'], ['1', '2', '3', '4'], $value);
+        $value = str_replace(['_', '*', '(', ')', '[', ']'], '', $value);
+        $value = preg_replace('/\s+/u', '', $value) ?? $value;
 
         return $value;
     }
@@ -2310,4 +2379,327 @@ class PracticeController extends Controller
             default => null,
         };
     }
+
+
+
+    // SUBBAB_3_3_ELIMINASI_GAUSS_V1
+    private function getSubbab33PracticeDefinition(string $practiceKey): ?array
+    {
+        $valueAnswers = static function (string $value): array {
+            return match ($value) {
+                '1/2' => ['1/2', '1 per 2'],
+                '-1/2' => ['-1/2', '-1 per 2'],
+                '1/3' => ['1/3', '1 per 3'],
+                '-1/3' => ['-1/3', '-1 per 3'],
+                '4/3' => ['4/3', '4 per 3'],
+                '5/3' => ['5/3', '5 per 3'],
+                '11/3' => ['11/3', '11 per 3'],
+                '5/2' => ['5/2', '5 per 2'],
+                default => [$value],
+            };
+        };
+
+        $valueQuestion = static function (string $value, string $wrong) use ($valueAnswers): array {
+            return [
+                'accepted_answers' => $valueAnswers($value),
+                'display_answer' => $value,
+                'feedback_correct' => 'Benar.',
+                'feedback_wrong' => $wrong,
+            ];
+        };
+
+        $valueQuestions = static function (array $values, string $wrong) use ($valueQuestion): array {
+            $questions = [];
+
+            foreach ($values as $field => $value) {
+                $questions[$field] = $valueQuestion((string) $value, $wrong);
+            }
+
+            return $questions;
+        };
+
+        $decisionQuestion = static function (string $answer, string $detail): array {
+            return [
+                'accepted_answers' => [$answer],
+                'display_answer' => ucfirst($answer),
+                'feedback_correct' => 'Benar. ' . $detail,
+                'feedback_wrong' => 'Jawaban yang benar adalah ' . strtoupper($answer) . '. ' . $detail,
+            ];
+        };
+
+        $operationQuestion = static function (array $accepted, string $display, string $wrong): array {
+            return [
+                'accepted_answers' => $accepted,
+                'display_answer' => $display,
+                'feedback_correct' => 'Benar.',
+                'feedback_wrong' => $wrong,
+            ];
+        };
+
+        return match ($practiceKey) {
+            'contoh-simulasi-3-3-substitusi-balik' => [
+                'title' => 'Contoh Simulasi 3.3 - Substitusi Balik',
+                'type' => 'contoh_simulasi',
+                'definition_version' => 'subbab33_eliminasi_gauss_v1',
+                'max_score' => 0,
+                'groups' => [
+                    'baris_3' => [
+                        'number' => 1,
+                        'fields' => ['c_b3_numerator_a', 'c_b3_numerator_b'],
+                        'points' => 0,
+                    ],
+                    'baris_2' => [
+                        'number' => 2,
+                        'fields' => [
+                            'c_b2_sub_x3', 'c_b2_pengurang', 'c_b2_pembilang_5',
+                            'c_b2_pembilang_sub', 'c_b2_hasil',
+                        ],
+                        'points' => 0,
+                    ],
+                    'baris_1' => [
+                        'number' => 3,
+                        'fields' => [
+                            'c_b1_x2', 'c_b1_x3', 'c_b1_penyederhanaan_a',
+                            'c_b1_penyederhanaan_b', 'c_b1_total', 'c_b1_pengurang',
+                            'c_b1_pembilang_5', 'c_b1_pembilang_sub', 'c_b1_hasil',
+                        ],
+                        'points' => 0,
+                    ],
+                    'hasil' => [
+                        'number' => 4,
+                        'fields' => ['c_hasil_x1', 'c_hasil_x2', 'c_hasil_x3', 'c_hasil_x4'],
+                        'points' => 0,
+                    ],
+                ],
+                'questions' => [
+                    ...$valueQuestions([
+                        'c_b3_numerator_a' => '-21',
+                        'c_b3_numerator_b' => '4',
+                        'c_b2_sub_x3' => '4',
+                        'c_b2_pengurang' => '4',
+                        'c_b2_pembilang_5' => '15',
+                        'c_b2_pembilang_sub' => '4',
+                        'c_b2_hasil' => '11',
+                        'c_b1_x2' => '11',
+                        'c_b1_x3' => '4',
+                        'c_b1_penyederhanaan_a' => '11',
+                        'c_b1_penyederhanaan_b' => '8',
+                        'c_b1_total' => '14',
+                        'c_b1_pengurang' => '14',
+                        'c_b1_pembilang_5' => '15',
+                        'c_b1_pembilang_sub' => '14',
+                        'c_b1_hasil' => '1',
+                    ], 'Periksa kembali proses substitusi balik dari baris yang lebih bawah.'),
+                    'c_hasil_x1' => $valueQuestion('1/3', 'Nilai x₁ diperoleh dari Baris-1.'),
+                    'c_hasil_x2' => $valueQuestion('11/3', 'Nilai x₂ diperoleh dari Baris-2.'),
+                    'c_hasil_x3' => $valueQuestion('4/3', 'Nilai x₃ diperoleh dari Baris-3.'),
+                    'c_hasil_x4' => $valueQuestion('5/3', 'Nilai x₄ diperoleh dari Baris-4.'),
+                ],
+            ],
+
+            'aktivitas-3-2-eliminasi-gauss' => [
+                'title' => 'Aktivitas 3.2 - Menyelesaikan SPL dengan Eliminasi Gauss',
+                'type' => 'aktivitas',
+                'definition_version' => 'subbab33_eliminasi_gauss_v1',
+                'max_score' => 100,
+                'groups' => [
+                    'fase_1' => [
+                        'number' => 1,
+                        'fields' => [
+                            'a_f1_q1_pivot', 'a_f1_pivot_notasi',
+                            'a_f1_pivot_11', 'a_f1_pivot_12', 'a_f1_pivot_13', 'a_f1_pivot_14',
+                            'a_f1_q2_baris2', 'a_f1_b2_notasi',
+                            'a_f1_b2_produk_1', 'a_f1_b2_produk_2', 'a_f1_b2_produk_3', 'a_f1_b2_produk_4',
+                            'a_f1_b2_hasil_1', 'a_f1_b2_hasil_2', 'a_f1_b2_hasil_3', 'a_f1_b2_hasil_4',
+                            'a_f1_q3_baris3', 'a_f1_b3_notasi',
+                            'a_f1_b3_produk_1', 'a_f1_b3_produk_2', 'a_f1_b3_produk_3', 'a_f1_b3_produk_4',
+                            'a_f1_b3_hasil_1', 'a_f1_b3_hasil_2', 'a_f1_b3_hasil_3', 'a_f1_b3_hasil_4',
+                        ],
+                        'points' => 25,
+                    ],
+                    'fase_2' => [
+                        'number' => 2,
+                        'fields' => [
+                            'a_f2_q1_pivot', 'a_f2_pivot_notasi', 'a_f2_pivot_23', 'a_f2_pivot_24',
+                            'a_f2_q2_baris3', 'a_f2_b3_notasi',
+                            'a_f2_b3_produk_1', 'a_f2_b3_produk_2', 'a_f2_b3_produk_3', 'a_f2_b3_produk_4',
+                            'a_f2_b3_awal_1', 'a_f2_b3_awal_2', 'a_f2_b3_awal_3', 'a_f2_b3_awal_4',
+                            'a_f2_b3_hasil_3', 'a_f2_b3_hasil_4',
+                        ],
+                        'points' => 25,
+                    ],
+                    'fase_3' => [
+                        'number' => 3,
+                        'fields' => [
+                            'a_f3_notasi',
+                            'a_f3_final_11', 'a_f3_final_12', 'a_f3_final_13', 'a_f3_final_14',
+                            'a_f3_final_23', 'a_f3_final_24', 'a_f3_final_34',
+                        ],
+                        'points' => 25,
+                    ],
+                    'fase_4' => [
+                        'number' => 4,
+                        'fields' => [
+                            'a_f4_z',
+                            'a_f4_y_koefisien', 'a_f4_y_ruas_kanan_awal',
+                            'a_f4_y_koefisien_sub', 'a_f4_y_sub_z', 'a_f4_y_ruas_kanan_sub',
+                            'a_f4_y_pengurang', 'a_f4_y_ruas_kanan_sederhana',
+                            'a_f4_y_ruas_kanan_pindah', 'a_f4_y_pindah_ruas', 'a_f4_y_hasil',
+                            'a_f4_x_ruas_kanan_awal', 'a_f4_x_sub_y', 'a_f4_x_sub_z',
+                            'a_f4_x_ruas_kanan_sub', 'a_f4_x_ruas_kanan_sederhana',
+                            'a_f4_x_pindah_ruas', 'a_f4_x_pembilang', 'a_f4_x_hasil_pembilang',
+                            'a_f4_hasil_x', 'a_f4_hasil_y', 'a_f4_hasil_z',
+                        ],
+                        'points' => 25,
+                    ],
+                ],
+                'questions' => [
+                    'a_f1_q1_pivot' => $decisionQuestion(
+                        'tidak',
+                        'Elemen utama Baris-1 bernilai 2 sehingga harus diubah menjadi 1 utama.'
+                    ),
+                    'a_f1_pivot_notasi' => $operationQuestion(
+                        [
+                            'b1←1/2b1',
+                            'b_1←1/2b_1',
+                            'b1<-1/2b1',
+                            'b_1<-1/2b_1',
+                            'b_1\leftarrow\frac{1}{2}b_1',
+                            'b_1\leftarrow\frac12b_1',
+                            'b_1\leftarrow\frac{1}2b_1',
+                            'b_1\leftarrow\frac1{2}b_1',
+                            'b1\leftarrow\frac{1}{2}b1',
+                        ],
+                        'B₁ ← 1/2 B₁',
+                        'Kalikan seluruh elemen Baris-1 dengan 1/2.'
+                    ),
+                    ...$valueQuestions([
+                        'a_f1_pivot_11' => '1',
+                        'a_f1_pivot_12' => '1',
+                        'a_f1_pivot_13' => '-1/2',
+                        'a_f1_pivot_14' => '2',
+                    ], 'Periksa kembali hasil perkalian Baris-1 dengan 1/2.'),
+
+                    'a_f1_q2_baris2' => $decisionQuestion(
+                        'tidak',
+                        'Elemen Baris-2 Kolom-1 bernilai 4 sehingga perlu dieliminasi.'
+                    ),
+                    'a_f1_b2_notasi' => $operationQuestion(
+                        ['b2←-4b1+b2', 'b_2←-4b_1+b_2', 'b2<- -4b1+b2', 'b_2<- -4b_1+b_2'],
+                        'B₂ ← -4B₁ + B₂',
+                        'Gunakan -4B₁ kemudian tambahkan ke B₂.'
+                    ),
+                    ...$valueQuestions([
+                        'a_f1_b2_produk_1' => '-4',
+                        'a_f1_b2_produk_2' => '-4',
+                        'a_f1_b2_produk_3' => '2',
+                        'a_f1_b2_produk_4' => '-8',
+                        'a_f1_b2_hasil_1' => '0',
+                        'a_f1_b2_hasil_2' => '-3',
+                        'a_f1_b2_hasil_3' => '3',
+                        'a_f1_b2_hasil_4' => '3',
+                    ], 'Periksa kembali rincian operasi B₂ ← -4B₁ + B₂.'),
+
+                    'a_f1_q3_baris3' => $decisionQuestion(
+                        'tidak',
+                        'Elemen Baris-3 Kolom-1 bernilai -2 sehingga perlu dieliminasi.'
+                    ),
+                    'a_f1_b3_notasi' => $operationQuestion(
+                        ['b3←2b1+b3', 'b_3←2b_1+b_3', 'b3<-2b1+b3', 'b_3<-2b_1+b_3'],
+                        'B₃ ← 2B₁ + B₃',
+                        'Gunakan 2B₁ kemudian tambahkan ke B₃.'
+                    ),
+                    ...$valueQuestions([
+                        'a_f1_b3_produk_1' => '2',
+                        'a_f1_b3_produk_2' => '2',
+                        'a_f1_b3_produk_3' => '-1',
+                        'a_f1_b3_produk_4' => '4',
+                        'a_f1_b3_hasil_1' => '0',
+                        'a_f1_b3_hasil_2' => '3',
+                        'a_f1_b3_hasil_3' => '2',
+                        'a_f1_b3_hasil_4' => '2',
+                    ], 'Periksa kembali rincian operasi B₃ ← 2B₁ + B₃.'),
+
+                    'a_f2_q1_pivot' => $decisionQuestion(
+                        'tidak',
+                        'Elemen utama Baris-2 bernilai -3 sehingga harus diubah menjadi 1 utama.'
+                    ),
+                    'a_f2_pivot_notasi' => $operationQuestion(
+                        ['b2←-1/3b2', 'b_2←-1/3b_2', 'b2<- -1/3b2', 'b_2<- -1/3b_2'],
+                        'B₂ ← -1/3 B₂',
+                        'Kalikan seluruh elemen Baris-2 dengan -1/3.'
+                    ),
+                    ...$valueQuestions([
+                        'a_f2_pivot_23' => '-1',
+                        'a_f2_pivot_24' => '-1',
+                    ], 'Periksa kembali hasil perkalian Baris-2 dengan -1/3.'),
+
+                    'a_f2_q2_baris3' => $decisionQuestion(
+                        'tidak',
+                        'Elemen Baris-3 Kolom-2 bernilai 3 sehingga perlu dieliminasi.'
+                    ),
+                    'a_f2_b3_notasi' => $operationQuestion(
+                        ['b3←-3b2+b3', 'b_3←-3b_2+b_3', 'b3<- -3b2+b3', 'b_3<- -3b_2+b_3'],
+                        'B₃ ← -3B₂ + B₃',
+                        'Gunakan -3B₂ kemudian tambahkan ke B₃.'
+                    ),
+                    ...$valueQuestions([
+                        'a_f2_b3_produk_1' => '0',
+                        'a_f2_b3_produk_2' => '-3',
+                        'a_f2_b3_produk_3' => '3',
+                        'a_f2_b3_produk_4' => '3',
+                        'a_f2_b3_awal_1' => '0',
+                        'a_f2_b3_awal_2' => '3',
+                        'a_f2_b3_awal_3' => '2',
+                        'a_f2_b3_awal_4' => '2',
+                        'a_f2_b3_hasil_3' => '5',
+                        'a_f2_b3_hasil_4' => '5',
+                    ], 'Periksa kembali rincian operasi B₃ ← -3B₂ + B₃.'),
+
+                    'a_f3_notasi' => $operationQuestion(
+                        ['b3←1/5b3', 'b_3←1/5b_3', 'b3<-1/5b3', 'b_3<-1/5b_3'],
+                        'B₃ ← 1/5 B₃',
+                        'Kalikan seluruh elemen Baris-3 dengan 1/5.'
+                    ),
+                    ...$valueQuestions([
+                        'a_f3_final_11' => '1',
+                        'a_f3_final_12' => '1',
+                        'a_f3_final_13' => '-1/2',
+                        'a_f3_final_14' => '2',
+                        'a_f3_final_23' => '-1',
+                        'a_f3_final_24' => '-1',
+                        'a_f3_final_34' => '1',
+                    ], 'Periksa kembali matriks eselon baris final.'),
+
+                    ...$valueQuestions([
+                        'a_f4_z' => '1',
+                        'a_f4_y_koefisien' => '-1',
+                        'a_f4_y_ruas_kanan_awal' => '-1',
+                        'a_f4_y_koefisien_sub' => '-1',
+                        'a_f4_y_sub_z' => '1',
+                        'a_f4_y_ruas_kanan_sub' => '-1',
+                        'a_f4_y_pengurang' => '1',
+                        'a_f4_y_ruas_kanan_sederhana' => '-1',
+                        'a_f4_y_ruas_kanan_pindah' => '-1',
+                        'a_f4_y_pindah_ruas' => '1',
+                        'a_f4_y_hasil' => '0',
+                        'a_f4_x_ruas_kanan_awal' => '2',
+                        'a_f4_x_sub_y' => '0',
+                        'a_f4_x_sub_z' => '1',
+                        'a_f4_x_ruas_kanan_sub' => '2',
+                        'a_f4_x_ruas_kanan_sederhana' => '2',
+                        'a_f4_x_pindah_ruas' => '2',
+                        'a_f4_x_pembilang' => '4',
+                        'a_f4_x_hasil_pembilang' => '5',
+                    ], 'Periksa kembali proses substitusi balik berdasarkan matriks eselon baris final.'),
+                    'a_f4_hasil_x' => $valueQuestion('5/2', 'Nilai akhir x diperoleh dari Baris-1.'),
+                    'a_f4_hasil_y' => $valueQuestion('0', 'Nilai akhir y diperoleh dari Baris-2.'),
+                    'a_f4_hasil_z' => $valueQuestion('1', 'Nilai akhir z diperoleh dari Baris-3.'),
+                ],
+            ],
+
+            default => null,
+        };
+    }
+
 }
