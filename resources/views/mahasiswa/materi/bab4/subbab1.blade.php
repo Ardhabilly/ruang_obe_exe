@@ -53,6 +53,26 @@
     $activity41Completed = $activity41UsesComponentAttemptScope
         && (bool) ($activity41Submission?->is_completed ?? false);
 
+    /* SUBBAB_4_REVEALED_ANSWER_RENDER_FIX_V4 */
+    foreach ($activity41Feedback as $fieldKey => $fieldFeedback) {
+        if (($fieldFeedback['state'] ?? null) !== 'revealed') {
+            continue;
+        }
+
+        $revealedValue = (string) (
+            $fieldFeedback['correct_answer']
+            ?? $fieldFeedback['answer']
+            ?? ($activity41Answers[$fieldKey] ?? '')
+        );
+
+        if (str_contains(strtolower($revealedValue), 'tereduksi')) {
+            $revealedValue = 'tereduksi';
+        } elseif (str_contains(strtolower($revealedValue), 'eselon')) {
+            $revealedValue = 'eselon';
+        }
+        $activity41Answers[$fieldKey] = $revealedValue;
+    }
+
     $activity41Assisted = ($activity41Meta['completion_mode'] ?? null) === 'bantuan';
 
     $activity41MaxAttempts = max(1, (int) ($activity41Meta['max_attempts'] ?? 3));

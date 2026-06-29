@@ -327,6 +327,8 @@ class CourseController extends Controller
             /* SUBBAB_4_1_ESELON_TEREDUKSI_ATTEMPT_KEY_END */
             'aktivitas-3-2-eliminasi-gauss',
             'contoh-simulasi-4-2-eselon-baris-tereduksi',
+                'cek-pemahaman-4-3-membaca-rref',
+                'aktivitas-4-2-gauss-jordan',
         ];
 
         if (! in_array($submission->practice_key, $componentAttemptPracticeKeys, true)) {
@@ -397,6 +399,11 @@ class CourseController extends Controller
 'simulasi-mengubah-matriks-menjadi-eselon-baris-tereduksi' => [
     'contoh-simulasi-4-2-eselon-baris-tereduksi' => 'Contoh Simulasi 4.2 - Mengubah Matriks Menjadi Eselon Baris Tereduksi',
 ],
+            'menyelesaikan-spl-dengan-metode-eliminasi-gauss-jordan' => [
+                'cek-pemahaman-4-3-membaca-rref' => 'Cek Pemahaman 4.3 - Membaca Solusi dari Matriks Eselon Baris Tereduksi',
+                'aktivitas-4-2-gauss-jordan' => 'Aktivitas 4.2 - Menyelesaikan SPL dengan Metode Eliminasi Gauss-Jordan',
+            ],
+
 
 
 

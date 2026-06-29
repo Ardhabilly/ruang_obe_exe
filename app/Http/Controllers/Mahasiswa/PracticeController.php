@@ -491,6 +491,11 @@ class PracticeController extends Controller
             return $definition;
         }
 
+        if ($definition = $this->getSubbab43PracticeDefinition($practiceKey)) {
+            return $definition;
+        }
+
+
         if ($definition = $this->getSubbab33PracticeDefinition($practiceKey)) {
             return $definition;
         }        if ($definition = $this->getSubbab32PracticeDefinition($practiceKey)) {
@@ -3026,4 +3031,251 @@ class PracticeController extends Controller
         };
     }
 
+
+    /* SUBBAB_4_3_GAUSS_JORDAN_METHOD_START */
+    private function getSubbab43PracticeDefinition(string $practiceKey): ?array
+    {
+        $fractionAnswers = static function (string $value): array {
+            $answers = [$value];
+
+            if (str_contains($value, '/')) {
+                [$numerator, $denominator] = explode('/', $value, 2);
+
+                $answers[] = $numerator . ' per ' . $denominator;
+                $answers[] = $numerator . 'per' . $denominator;
+                $answers[] = '\\frac{' . $numerator . '}{' . $denominator . '}';
+            }
+
+            return array_values(array_unique($answers));
+        };
+
+        $valueQuestion = static function (string $value, string $feedback) use ($fractionAnswers): array {
+            return [
+                'accepted_answers' => $fractionAnswers($value),
+                'display_answer' => $value,
+                'feedback_correct' => 'Benar.',
+                'feedback_wrong' => $feedback,
+            ];
+        };
+
+        $decisionQuestion = static function (string $answer, string $description): array {
+            return [
+                'accepted_answers' => [$answer],
+                'display_answer' => strtoupper($answer),
+                'feedback_correct' => 'Benar. ' . $description,
+                'feedback_wrong' => 'Belum tepat. Periksa kembali nilai elemen pada posisi yang ditanyakan.',
+            ];
+        };
+
+        $operationQuestion = static function (
+            array $acceptedAnswers,
+            string $displayAnswer,
+            string $feedback
+        ): array {
+            return [
+                'accepted_answers' => $acceptedAnswers,
+                'display_answer' => $displayAnswer,
+                'feedback_correct' => 'Benar. Notasi operasi sudah sesuai.',
+                'feedback_wrong' => $feedback,
+            ];
+        };
+
+        $operationAnswers = [
+            'f4a_notasi' => [
+                'b2←b3+b2',
+                'b_2←b_3+b_2',
+                'b2<-b3+b2',
+                'b_2<-b_3+b_2',
+                'b2\leftarrow b3+b2',
+                'b_2\leftarrow b_3+b_2',
+            ],
+            'f4b_notasi' => [
+                'b1←1/2b3+b1',
+                'b_1←1/2b_3+b_1',
+                'b1<-1/2b3+b1',
+                'b_1<-1/2b_3+b_1',
+                'b1\leftarrow \frac{1}{2}b3+b1',
+                'b_1\leftarrow \frac{1}{2}b_3+b_1',
+            ],
+            'f5a_notasi' => [
+                'b1←-b2+b1',
+                'b_1←-b_2+b_1',
+                'b1<- -b2+b1',
+                'b_1<- -b_2+b_1',
+                'b1\leftarrow -b2+b1',
+                'b_1\leftarrow -b_2+b_1',
+            ],
+        ];
+
+        $questions = [
+            'cek43_b1_ruas_kanan' => $valueQuestion('1/3', 'Periksa kembali konstanta pada Baris-1.'),
+            'cek43_b1_solusi' => $valueQuestion('1/3', 'Karena hanya x₁ yang tersisa pada Baris-1, nilainya sama dengan konstanta.'),
+            'cek43_b2_ruas_kanan' => $valueQuestion('11/3', 'Periksa kembali konstanta pada Baris-2.'),
+            'cek43_b2_solusi' => $valueQuestion('11/3', 'Karena hanya x₂ yang tersisa pada Baris-2, nilainya sama dengan konstanta.'),
+            'cek43_b3_ruas_kanan' => $valueQuestion('4/3', 'Periksa kembali konstanta pada Baris-3.'),
+            'cek43_b3_solusi' => $valueQuestion('4/3', 'Karena hanya x₃ yang tersisa pada Baris-3, nilainya sama dengan konstanta.'),
+            'cek43_b4_ruas_kanan' => $valueQuestion('5/3', 'Periksa kembali konstanta pada Baris-4.'),
+            'cek43_b4_solusi' => $valueQuestion('5/3', 'Karena hanya x₄ yang tersisa pada Baris-4, nilainya sama dengan konstanta.'),
+
+            'f4_q1_baris2' => $decisionQuestion(
+                'tidak',
+                'Elemen Baris-2 Kolom-3 bernilai -1 sehingga perlu dinolkan.'
+            ),
+            'f4_q2_baris1' => $decisionQuestion(
+                'tidak',
+                'Elemen Baris-1 Kolom-3 bernilai -1/2 sehingga perlu dinolkan.'
+            ),
+            'f5_q1_baris1' => $decisionQuestion(
+                'tidak',
+                'Elemen Baris-1 Kolom-2 bernilai 1 sehingga perlu dinolkan.'
+            ),
+        ];
+
+        $operations = [
+            'f4a' => [
+                'notation' => 'f4a_notasi',
+                'notation_display' => 'B_2 \leftarrow B_3 + B_2',
+                'coefficient' => 'f4a_k',
+                'coefficient_value' => '1',
+                'product' => ['0', '0', '1', '1'],
+                'result' => ['0', '1', '0', '0'],
+                'feedback' => 'Periksa kembali operasi B₂ ← B₃ + B₂.',
+            ],
+            'f4b' => [
+                'notation' => 'f4b_notasi',
+                'notation_display' => 'B_1 \leftarrow \frac{1}{2}B_3 + B_1',
+                'coefficient' => 'f4b_k',
+                'coefficient_value' => '1/2',
+                'product' => ['0', '0', '1/2', '1/2'],
+                'result' => ['1', '1', '0', '5/2'],
+                'feedback' => 'Periksa kembali operasi B₁ ← 1/2 B₃ + B₁.',
+            ],
+            'f5a' => [
+                'notation' => 'f5a_notasi',
+                'notation_display' => 'B_1 \leftarrow -B_2 + B_1',
+                'coefficient' => 'f5a_k',
+                'coefficient_value' => '-1',
+                'product' => ['0', '-1', '0', '0'],
+                'result' => ['1', '0', '0', '5/2'],
+                'feedback' => 'Periksa kembali operasi B₁ ← -B₂ + B₁.',
+            ],
+        ];
+
+        $fase4Fields = ['f4_q1_baris2', 'f4_q2_baris1'];
+        $fase5Fields = ['f5_q1_baris1'];
+
+        foreach ($operations as $operationKey => $operation) {
+            $questions[$operation['notation']] = $operationQuestion(
+                $operationAnswers[$operation['notation']],
+                $operation['notation_display'],
+                $operation['feedback']
+            );
+
+            $questions[$operation['coefficient']] = $valueQuestion(
+                $operation['coefficient_value'],
+                $operation['feedback']
+            );
+
+            foreach ($operation['product'] as $index => $value) {
+                $questions[$operationKey . '_produk_' . ($index + 1)] = $valueQuestion(
+                    $value,
+                    $operation['feedback']
+                );
+            }
+
+            foreach ($operation['result'] as $index => $value) {
+                $questions[$operationKey . '_hasil_' . ($index + 1)] = $valueQuestion(
+                    $value,
+                    $operation['feedback']
+                );
+            }
+
+            $fields = array_merge(
+                [$operation['notation'], $operation['coefficient']],
+                array_map(fn (int $index) => $operationKey . '_produk_' . $index, range(1, 4)),
+                array_map(fn (int $index) => $operationKey . '_hasil_' . $index, range(1, 4))
+            );
+
+            if (str_starts_with($operationKey, 'f4')) {
+                $fase4Fields = array_merge($fase4Fields, $fields);
+            } else {
+                $fase5Fields = array_merge($fase5Fields, $fields);
+            }
+        }
+
+        $finalValues = [
+            'f6_final_11' => '1',
+            'f6_final_12' => '0',
+            'f6_final_13' => '0',
+            'f6_final_14' => '5/2',
+            'f6_final_21' => '0',
+            'f6_final_22' => '1',
+            'f6_final_23' => '0',
+            'f6_final_24' => '0',
+            'f6_final_31' => '0',
+            'f6_final_32' => '0',
+            'f6_final_33' => '1',
+            'f6_final_34' => '1',
+            'f6_solusi_x' => '5/2',
+            'f6_solusi_y' => '0',
+            'f6_solusi_z' => '1',
+        ];
+
+        foreach ($finalValues as $field => $value) {
+            $questions[$field] = $valueQuestion(
+                $value,
+                'Periksa kembali matriks eselon baris tereduksi final dan nilai solusi variabel.'
+            );
+        }
+
+        return match ($practiceKey) {
+            'cek-pemahaman-4-3-membaca-rref' => [
+                'title' => 'Cek Pemahaman 4.3 - Membaca Solusi dari Matriks Eselon Baris Tereduksi',
+                'type' => 'cek_pemahaman',
+                'definition_version' => 'subbab-4-3-gauss-jordan-v1',
+                'max_score' => 0,
+                'groups' => [
+                    'membaca_solusi' => [
+                        'number' => 1,
+                        'fields' => [
+                            'cek43_b1_ruas_kanan', 'cek43_b1_solusi',
+                            'cek43_b2_ruas_kanan', 'cek43_b2_solusi',
+                            'cek43_b3_ruas_kanan', 'cek43_b3_solusi',
+                            'cek43_b4_ruas_kanan', 'cek43_b4_solusi',
+                        ],
+                        'points' => 0,
+                    ],
+                ],
+                'questions' => $questions,
+            ],
+
+            'aktivitas-4-2-gauss-jordan' => [
+                'title' => 'Aktivitas 4.2 - Menyelesaikan SPL dengan Metode Eliminasi Gauss-Jordan',
+                'type' => 'aktivitas',
+                'definition_version' => 'subbab-4-3-gauss-jordan-v1',
+                'max_score' => 100,
+                'groups' => [
+                    'fase_4' => [
+                        'number' => 4,
+                        'fields' => $fase4Fields,
+                        'points' => 40,
+                    ],
+                    'fase_5' => [
+                        'number' => 5,
+                        'fields' => $fase5Fields,
+                        'points' => 30,
+                    ],
+                    'fase_6' => [
+                        'number' => 6,
+                        'fields' => array_keys($finalValues),
+                        'points' => 30,
+                    ],
+                ],
+                'questions' => $questions,
+            ],
+
+            default => null,
+        };
+    }
+    /* SUBBAB_4_3_GAUSS_JORDAN_METHOD_END */
 }

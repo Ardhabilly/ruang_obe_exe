@@ -54,6 +54,21 @@
     $simulation42Completed = $simulation42UsesComponentAttemptScope
         && (bool) ($simulation42Submission?->is_completed ?? false);
 
+    /* SUBBAB_4_REVEALED_ANSWER_RENDER_FIX_V4 */
+    foreach ($simulation42Feedback as $fieldKey => $fieldFeedback) {
+        if (($fieldFeedback['state'] ?? null) !== 'revealed') {
+            continue;
+        }
+
+        $revealedValue = (string) (
+            $fieldFeedback['correct_answer']
+            ?? $fieldFeedback['answer']
+            ?? ($simulation42Answers[$fieldKey] ?? '')
+        );
+
+        $simulation42Answers[$fieldKey] = $revealedValue;
+    }
+
     $simulation42Assisted = ($simulation42Meta['completion_mode'] ?? null) === 'bantuan';
 
     $simulation42MaxAttempts = max(1, (int) ($simulation42Meta['max_attempts'] ?? 3));
