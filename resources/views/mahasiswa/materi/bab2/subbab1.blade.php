@@ -1,12 +1,9 @@
 @include('mahasiswa.materi.bab2.pengantar')
 <section class="space-y-6">
     <div class="rounded-2xl border border-cyan-100 bg-cyan-50/70 p-5 sm:p-6">
-        <p class="text-sm font-black uppercase tracking-[0.16em] text-cyan-700">
-            Subbab 2.1
-        </p>
 
         <h2 class="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
-            Pengertian Operasi Baris Elementer
+            2.1 Pengertian Operasi Baris Elementer
         </h2>
 
         <p class="mt-3 max-w-3xl text-sm leading-7 text-slate-600 sm:text-base">

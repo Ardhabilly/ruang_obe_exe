@@ -30,14 +30,6 @@
         ? $simulation32FeedbackRaw['_meta']
         : [];
 
-    /* SUBBAB_3_2_BANTUAN_TAMPIL_JAWABAN_FIX
-     *
-     * Data bantuan dari versi yang sedang dipakai memiliki field keputusan
-     * fase1_q1_pivot dan field hasil fase4_pivot_hasil_45. Pada hasil bantuan
-     * yang sudah tersimpan, metadata definition_version belum selalu tersedia.
-     * Struktur field tersebut digunakan sebagai penanda aman agar jawaban yang
-     * telah diungkapkan tetap ditampilkan pada kolom terkait.
-     */
     $simulation32HasCurrentDecisionStructure = isset($simulation32Feedback['fase1_q1_pivot'])
         || array_key_exists('fase1_q1_pivot', $simulation32StoredAnswers)
         || array_key_exists('fase4_pivot_hasil_45', $simulation32StoredAnswers);
@@ -487,9 +479,9 @@
 
 <section class="space-y-8">
     <div class="space-y-4">
-        <h2 class="text-2xl font-black text-slate-950">
+        {{-- <h2 class="text-2xl font-black text-slate-950">
             3.2 Simulasi Mengubah Matriks Menjadi Eselon Baris
-        </h2>
+        </h2> --}}
 
         <p>
             Mari kita simulasikan algoritma ini pada Sistem Persamaan Linear empat variabel

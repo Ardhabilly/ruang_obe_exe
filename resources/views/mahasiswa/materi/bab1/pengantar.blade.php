@@ -78,4 +78,71 @@
             </p>
         </div>
     </div>
+
+    <!-- TUJUAN_PEMBELAJARAN_BAB_1_V1 -->
+    <div class="rounded-2xl border border-cyan-200 bg-cyan-50 p-6">
+        <p class="text-sm font-bold uppercase tracking-[0.18em] text-cyan-700">
+            Tujuan Pembelajaran Bab 1
+        </p>
+
+        <h3 class="mt-2 text-xl font-black text-slate-950">
+            Setelah mempelajari bab ini, mahasiswa diharapkan mampu:
+        </h3>
+
+        <ol class="mt-5 space-y-4 text-slate-700">
+            <li class="flex gap-3">
+                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-cyan-600 text-sm font-black text-white">
+                    1
+                </span>
+
+                <span class="leading-7">
+                    Membedakan persamaan linear dan non-linear berdasarkan karakteristik aljabarnya.
+                </span>
+            </li>
+
+            <li class="flex gap-3">
+                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-cyan-600 text-sm font-black text-white">
+                    2
+                </span>
+
+                <span class="leading-7">
+                    Mengidentifikasi komponen dan bentuk umum Sistem Persamaan Linear, meliputi
+                    koefisien, variabel, konstanta, serta SPL homogen dan non-homogen.
+                </span>
+            </li>
+
+            <li class="flex gap-3">
+                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-cyan-600 text-sm font-black text-white">
+                    3
+                </span>
+
+                <span class="leading-7">
+                    Menganalisis kemungkinan solusi SPL, yaitu solusi tunggal, banyak solusi,
+                    atau tidak memiliki solusi.
+                </span>
+            </li>
+
+            <li class="flex gap-3">
+                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-cyan-600 text-sm font-black text-white">
+                    4
+                </span>
+
+                <span class="leading-7">
+                    Menyelesaikan SPL sederhana dengan metode eliminasi dan substitusi sebagai
+                    pengantar penyelesaian sistem.
+                </span>
+            </li>
+
+            <li class="flex gap-3">
+                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-cyan-600 text-sm font-black text-white">
+                    5
+                </span>
+
+                <span class="leading-7">
+                    Merepresentasikan SPL ke dalam matriks koefisien, bentuk \(Ax=b\), dan
+                    matriks diperbesar (<span class="italic">augmented matrix</span>).
+                </span>
+            </li>
+        </ol>
+    </div>
 </section>
