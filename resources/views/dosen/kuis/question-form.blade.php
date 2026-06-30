@@ -2,13 +2,37 @@
     @php
         $isEditing = $formMode === 'edit';
 
-        $data = $question->question_data ?? [];
-        $answerKey = $question->answer_key ?? [];
-        $acceptedAnswers = $question->accepted_answers ?? [];
+
+        $data = is_array($question->question_data ?? null)
+            ? $question->question_data
+            : [];
+
+        $answerKey = is_array($question->answer_key ?? null)
+            ? $question->answer_key
+            : [];
+
+        $acceptedAnswers = is_array($question->accepted_answers ?? null)
+            ? $question->accepted_answers
+            : [];
+
+        $toLineText = static function (mixed $value): string {
+            $items = is_array($value)
+                ? \Illuminate\Support\Arr::flatten($value)
+                : [$value];
+
+            return collect($items)
+                ->map(function ($item) {
+                    return is_scalar($item)
+                        ? trim((string) $item)
+                        : '';
+                })
+                ->filter(fn ($item) => $item !== '')
+                ->implode("\n");
+        };
 
         $questionType = old('question_type', $question->question_type ?: 'short_text');
-        $equationsText = old('equations_text', implode("\n", $data['equations'] ?? []));
-        $acceptedAnswersText = old('accepted_answers_text', implode("\n", $acceptedAnswers));
+        $equationsText = old('equations_text', $toLineText($data['equations'] ?? []));
+        $acceptedAnswersText = old('accepted_answers_text', $toLineText($acceptedAnswers));
 
         $defaultOptions = [
             'A' => '',
@@ -49,9 +73,14 @@
                 $label = $key;
             }
 
+            $variableAnswer = $answerKey[$key] ?? '';
+            $variableAnswer = is_array($variableAnswer)
+                ? ($variableAnswer[0] ?? '')
+                : $variableAnswer;
+
             $variableDefinitions[] = [
                 'label' => $label,
-                'answer' => $answerKey[$key] ?? '',
+                'answer' => $variableAnswer,
             ];
         }
 
@@ -119,6 +148,16 @@
         );
 
         if (! is_array($obeOperationsLatex) || empty($obeOperationsLatex)) {
+            $obeOperationsLatex = [''];
+        }
+
+        $obeOperationsLatex = collect(\Illuminate\Support\Arr::flatten($obeOperationsLatex))
+            ->map(fn ($operation) => is_scalar($operation) ? trim((string) $operation) : '')
+            ->filter()
+            ->values()
+            ->all();
+
+        if (empty($obeOperationsLatex)) {
             $obeOperationsLatex = [''];
         }
 
