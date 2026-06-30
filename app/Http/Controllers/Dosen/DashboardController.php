@@ -35,24 +35,6 @@ class DashboardController extends Controller
 
         $totalLessons = CourseLesson::count();
 
-        $completedProgress = UserLessonProgress::whereIn('user_id', $studentIds)
-            ->where('completed', true)
-            ->count();
-
-        $totalPossibleProgress = $totalMahasiswa * $totalLessons;
-
-        $averageProgress = $totalPossibleProgress > 0
-            ? round(($completedProgress / $totalPossibleProgress) * 100)
-            : 0;
-
-        $totalDurationSeconds = UserLessonProgress::whereIn('user_id', $studentIds)
-            ->sum('duration_seconds');
-
-        $averageDurationMinutes = $totalMahasiswa > 0
-            ? (int) round(($totalDurationSeconds / $totalMahasiswa) / 60)
-            : 0;
-
-        $averageStudyDuration = $this->formatDuration($averageDurationMinutes);
 
         $latestPracticeSubmissions = PracticeSubmission::with(['user', 'lesson.module'])
             ->whereIn('user_id', $studentIds)
@@ -90,32 +72,10 @@ class DashboardController extends Controller
             'totalClasses',
             'activeClasses',
             'totalLessons',
-            'completedProgress',
-            'averageProgress',
-            'averageStudyDuration',
             'latestPracticeSubmissions',
             'latestProgress',
             'topMahasiswa'
         ));
     }
 
-    private function formatDuration(int $totalMinutes): string
-    {
-        if ($totalMinutes <= 0) {
-            return '0 menit';
-        }
-
-        $hours = intdiv($totalMinutes, 60);
-        $minutes = $totalMinutes % 60;
-
-        if ($hours === 0) {
-            return $minutes . ' menit';
-        }
-
-        if ($minutes === 0) {
-            return $hours . ' jam';
-        }
-
-        return $hours . ' jam ' . $minutes . ' menit';
-    }
 }

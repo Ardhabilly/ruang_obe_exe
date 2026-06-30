@@ -19,7 +19,7 @@
                         </h1>
 
                         <p class="mt-5 max-w-3xl text-base leading-8 text-slate-300">
-                            Pantau kelas, progres materi, durasi belajar, dan aktivitas mahasiswa
+                            Pantau kelas, aktivitas pembelajaran, dan keterlibatan mahasiswa
                             melalui dashboard RuangOBE.
                         </p>
                     </div>
@@ -31,32 +31,20 @@
                 </div>
             </section>
 
-            <section class="grid gap-5 md:grid-cols-4">
-                <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-6 backdrop-blur-xl">
-                    <p class="text-sm font-semibold text-slate-400">Mahasiswa</p>
+            <section class="grid w-full grid-cols-1 gap-5 md:grid-cols-2">
+                <div class="flex min-h-[172px] flex-col justify-between rounded-[1.5rem] border border-white/10 bg-gradient-to-br from-white/[0.09] to-white/[0.04] p-6 shadow-lg shadow-slate-950/10 backdrop-blur-xl">
+                    <p class="text-sm font-semibold text-slate-400">Total Mahasiswa</p>
                     <p class="mt-4 text-4xl font-black text-white">{{ $totalMahasiswa }}</p>
                     <p class="mt-2 text-xs text-cyan-200">Tergabung dalam kelas</p>
                 </div>
 
-                <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-6 backdrop-blur-xl">
+                <div class="flex min-h-[172px] flex-col justify-between rounded-[1.5rem] border border-white/10 bg-gradient-to-br from-white/[0.09] to-white/[0.04] p-6 shadow-lg shadow-slate-950/10 backdrop-blur-xl">
                     <p class="text-sm font-semibold text-slate-400">Kelas Aktif</p>
                     <p class="mt-4 text-4xl font-black text-white">{{ $activeClasses }}</p>
                     <p class="mt-2 text-xs text-cyan-200">Dari {{ $totalClasses }} kelas</p>
                 </div>
 
-                <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-6 backdrop-blur-xl">
-                    <p class="text-sm font-semibold text-slate-400">Rata-rata Progres</p>
-                    <p class="mt-4 text-4xl font-black text-white">{{ $averageProgress }}%</p>
-                    <p class="mt-2 text-xs text-cyan-200">{{ $completedProgress }} progres selesai</p>
-                </div>
 
-                <div class="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-6 backdrop-blur-xl">
-                    <p class="text-sm font-semibold text-slate-400">Rata-rata Durasi Belajar</p>
-                    <p class="mt-4 text-2xl font-black text-white">
-                        {{ $averageStudyDuration }}
-                    </p>
-                    <p class="mt-2 text-xs text-cyan-200">Per mahasiswa</p>
-                </div>
             </section>
 
             <section class="grid gap-5 lg:grid-cols-[1fr_0.9fr]">
