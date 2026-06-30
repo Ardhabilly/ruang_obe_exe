@@ -12,7 +12,7 @@
 
                 <div class="relative">
                     <p class="text-sm font-bold uppercase tracking-[0.25em] text-cyan-300">
-                        Instruksi CBT
+                        Instruksi Kuis
                     </p>
 
                     <h1 class="mt-3 text-4xl font-black tracking-tight text-white">

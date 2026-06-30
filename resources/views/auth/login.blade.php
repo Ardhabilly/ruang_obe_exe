@@ -31,7 +31,7 @@
                         <h1 class="mt-10 max-w-xl text-5xl font-black tracking-tight text-white">
                             Masuk ke ruang belajar
                             <span class="bg-gradient-to-r from-cyan-300 to-blue-400 bg-clip-text text-transparent">
-                                Aljabar Linear
+                                Operasi Baris Elementer
                             </span>
                         </h1>
 
@@ -157,7 +157,7 @@
                         <button
                             type="submit"
                             class="w-full rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-black text-slate-950 shadow-lg shadow-cyan-500/20 transition hover:bg-cyan-300">
-                            Masuk ke RuangOBE
+                            Masuk
                         </button>
 
                         <p class="text-center text-sm text-slate-400">

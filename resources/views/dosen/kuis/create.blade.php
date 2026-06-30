@@ -123,7 +123,7 @@
                             <option value="{{ $module->id }}"
                                 @selected((string) old('course_module_id') === (string) $module->id)
                                 class="bg-slate-950">
-                                Bab {{ $module->order_number }} — {{ $module->title }}
+                                {{ $module->title }}
                             </option>
                         @endforeach
                     </select>

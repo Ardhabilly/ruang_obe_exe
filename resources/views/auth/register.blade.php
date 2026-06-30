@@ -19,7 +19,7 @@
                         </h1>
 
                         <p class="mt-2 text-sm text-slate-400">
-                            Linear Algebra Learning Space
+                            Elementary Row Operations Learning Space
                         </p>
                     </div>
 

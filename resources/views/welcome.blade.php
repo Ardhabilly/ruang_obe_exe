@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>RuangOBE - Media Pembelajaran Aljabar Linear</title>
+    <title>RuangOBE - Media Pembelajaran Operasi Baris Elementer</title>
 
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600,700,800,900" rel="stylesheet" />
@@ -32,7 +32,7 @@
                             RuangOBE
                         </div>
                         <div class="text-xs font-medium text-cyan-200/70">
-                            Linear Algebra Learning Space
+                            Elementary Row Operations Learning Space
                         </div>
                     </div>
                 </a>
@@ -77,7 +77,7 @@
                 <div>
                     <div class="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm font-bold text-cyan-200">
                         <span class="h-2 w-2 rounded-full bg-cyan-300"></span>
-                        Media Pembelajaran Aljabar Linear
+                        Media Pembelajaran Operasi Baris Elementer
                     </div>
 
                     <h1 class="mt-7 max-w-4xl text-5xl font-black tracking-tight text-white sm:text-6xl lg:text-7xl">
@@ -139,7 +139,7 @@
                             <div class="flex items-center justify-between gap-3">
                                 <div>
                                     <p class="text-sm font-bold text-cyan-200">
-                                        Simulasi Aljabar Linear
+                                        Simulasi Operasi Baris Elementer
                                     </p>
 
                                     <p class="mt-1 text-xs text-slate-400">
@@ -248,9 +248,9 @@
                             03
                         </div>
 
-                        {{-- <h3 class="mt-5 text-xl font-black text-white">
-                            Learning Analytics
-                        </h3> --}}
+                        <h3 class="mt-5 text-xl font-black text-white">
+                            Progress
+                        </h3>
 
                         <p class="mt-3 text-sm leading-6 text-slate-400">
                             Progress materi, nilai latihan, nilai kuis, dan aktivitas mahasiswa dapat dipantau oleh dosen.
@@ -321,8 +321,8 @@
                     </h2>
 
                     <p class="mx-auto mt-4 max-w-2xl text-sm leading-7 text-slate-400">
-                        Materi disusun sesuai urutan pembelajaran Aljabar Linear dari konsep dasar
-                        sampai penyelesaian SPL menggunakan metode matriks.
+                        Materi disusun sesuai urutan pembelajaran Operasi Baris Elementer dari konsep dasar
+                        sampai penyelesaian Metode Eliminasi Gauss & Gauss-Jordan.
                     </p>
                 </div>
 
@@ -380,7 +380,7 @@
 
                         <p class="mx-auto mt-4 max-w-2xl text-sm leading-7 text-slate-300">
                             Daftar sebagai mahasiswa, masuk ke kelas menggunakan token dari dosen,
-                            lalu mulai belajar materi Aljabar Linear secara bertahap.
+                            lalu mulai belajar materi Operasi Baris Elementer secara bertahap.
                         </p>
 
                         <div class="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
@@ -409,7 +409,7 @@
         <footer class="border-t border-white/10 py-8">
             <div class="mx-auto flex max-w-7xl flex-col gap-3 px-4 text-sm text-slate-500 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
                 <p>
-                    © {{ date('Y') }} RuangOBE. Media Pembelajaran Aljabar Linear.
+                    © {{ date('Y') }} RuangOBE. Media Pembelajaran Operasi Baris Elementer.
                 </p>
 
                 <p>
