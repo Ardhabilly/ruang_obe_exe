@@ -1489,6 +1489,4 @@
             </div>
         </div>
     </div>
-
-    <script defer src="https://cdn.jsdelivr.net/npm/mathlive"></script>
 </x-app-layout>
