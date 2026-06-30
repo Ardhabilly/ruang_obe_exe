@@ -136,26 +136,15 @@
                                 </div>
                             </div>
 
+                            <x-quiz-response-display
+                                :question="$response->question"
+                                :response="$response"
+                                mode="mahasiswa"
+                            />
                             <div class="mt-4 rounded-xl border border-white/10 bg-white/5 p-4 text-sm leading-6 {{ $response->is_correct ? 'text-green-200' : 'text-red-200' }}">
                                 {{ $response->feedback }}
                             </div>
 
-                            @if ($response->canvas_data && $response->question->question_type === 'canvas_final_answer')
-                                <div class="mt-4 rounded-xl border border-cyan-300/20 bg-cyan-400/10 p-4">
-                                    <p class="text-sm font-black text-cyan-100">
-                                        Langkah pengerjaan
-                                    </p>
-
-                                    <div class="mt-3 overflow-x-auto rounded-xl border border-cyan-200/20 bg-slate-950/30 p-4">
-                                        <math-field
-                                            read-only
-                                            math-virtual-keyboard-policy="manual"
-                                            class="block min-w-max border-0 bg-transparent p-0 text-base text-cyan-50 shadow-none outline-none">
-                                            {{ $response->canvas_data }}
-                                        </math-field>
-                                    </div>
-                                </div>
-                            @endif
                         </div>
                     @endforeach
                 </div>

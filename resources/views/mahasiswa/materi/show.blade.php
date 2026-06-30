@@ -1,4 +1,3 @@
-{{-- MATERI_SHOW_TANPA_SIDEBAR_LOKAL_FLOWBITE_V1 --}}
 <x-app-layout>
     @php
         $contentView = match ($lesson->slug) {

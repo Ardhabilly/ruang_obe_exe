@@ -51,7 +51,6 @@
     @keydown.escape.window="sidebarOpen = false; userMenuOpen = false"
     class="contents"
 >
-    {{-- Topbar: struktur bawaan Flowbite/Tailwind --}}
     <header class="fixed inset-x-0 top-0 z-50 h-16 border-b border-slate-800 bg-slate-950/95 backdrop-blur">
         <div class="flex h-full items-center justify-between px-3 sm:pl-4 lg:px-5 lg:pl-3">
             <div class="flex items-center gap-2">
@@ -207,9 +206,9 @@
                         Materi Pembelajaran
                     </p>
 
-                    <p class="mt-2 px-2 text-sm font-semibold leading-5 text-white">
+                    {{-- <p class="mt-2 px-2 text-sm font-semibold leading-5 text-white">
                         {{ $courseTitle }}
-                    </p>
+                    </p> --}}
 </div>
 
                 <ul class="space-y-2 font-medium">
@@ -370,7 +369,6 @@
                     </div>
                 @endif
             @else
-                {{-- Sidebar utama memakai pola menu Flowbite yang sama --}}
                 <ul class="space-y-2 font-medium">
                     @if ($isMahasiswa)
                         <li>
@@ -399,28 +397,6 @@
                                 </svg>
                                 <span class="ml-3 flex-1 whitespace-nowrap">Materi</span>
                                 <span class="rounded bg-slate-800 px-1.5 py-0.5 text-xs font-medium text-cyan-200">Lanjut</span>
-                            </a>
-                        </li>
-                    @endif
-
-                    @if ($isDosen)
-                        <li>
-                            <a href="{{ route('dosen.dashboard') }}" @click="sidebarOpen = false" class="group flex items-center rounded-lg px-2 py-2 text-sm transition {{ request()->routeIs('dosen.dashboard') ? 'bg-slate-800 text-cyan-100' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">
-                                <svg class="h-5 w-5 transition {{ request()->routeIs('dosen.dashboard') ? 'text-cyan-200' : 'text-slate-400 group-hover:text-cyan-200' }}" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6.025A7.5 7.5 0 1 0 17.975 14H10V6.025Z" />
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 3c-.169 0-.334.014-.5.025V11h7.975c.011-.166.025-.331.025-.5A7.5 7.5 0 0 0 13.5 3Z" />
-                                </svg>
-                                <span class="ml-3">Dashboard</span>
-                            </a>
-                        </li>
-
-                        <li>
-                            <a href="{{ route('dosen.kelas.index') }}" @click="sidebarOpen = false" class="group flex items-center rounded-lg px-2 py-2 text-sm transition {{ request()->routeIs('dosen.kelas.*') || request()->routeIs('dosen.kuis.*') ? 'bg-slate-800 text-cyan-100' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">
-                                <svg class="h-5 w-5 transition {{ request()->routeIs('dosen.kelas.*') || request()->routeIs('dosen.kuis.*') ? 'text-cyan-200' : 'text-slate-400 group-hover:text-cyan-200' }}" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5.75A2.75 2.75 0 0 1 5.75 3h12.5A2.75 2.75 0 0 1 21 5.75v12.5A2.75 2.75 0 0 1 18.25 21H5.75A2.75 2.75 0 0 1 3 18.25V5.75ZM7 7h4m-4 4h10m-10 4h7" />
-                                </svg>
-                                <span class="ml-3 flex-1">Kelola Kelas</span>
-                                <span class="rounded bg-slate-800 px-1.5 py-0.5 text-xs font-medium text-slate-300">Kuis</span>
                             </a>
                         </li>
                     @endif
