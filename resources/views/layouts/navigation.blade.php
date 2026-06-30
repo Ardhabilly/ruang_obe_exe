@@ -1,8 +1,6 @@
-{{-- DOSEN_NAVBAR_WRAPPER_V1 --}}
 @if (Auth::check() && Auth::user()->role === 'dosen')
     @include('layouts.partials.dosen-navbar')
 @else
-{{-- FLOWBITE_TAILWIND_MATERIAL_SIDEBAR_V1 --}}
 @php
     $currentUser = Auth::user();
     $isMahasiswa = $currentUser?->role === 'mahasiswa';
