@@ -232,7 +232,7 @@
 <div class="mt-5 space-y-4">
     <div class="rounded-2xl border {{ $cardClass }} p-4">
         <p class="text-xs font-bold uppercase tracking-wide {{ $titleClass }}">
-            {{ $isMahasiswa ? 'Jawaban Anda' : 'Jawaban Mahasiswa' }}
+            {{ $isMahasiswa ? 'Jawaban' : 'Jawaban Mahasiswa' }}
         </p>
 
         <div class="mt-3 space-y-4">
