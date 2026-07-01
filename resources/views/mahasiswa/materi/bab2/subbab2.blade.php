@@ -148,12 +148,41 @@
 
         $meta = is_array($feedbackRaw['_meta'] ?? null) ? $feedbackRaw['_meta'] : [];
 
+        /* AKTIVITAS_21_RINCIAN_PENGALI_STATE_V1 */
+        $completed = (bool) ($submission?->is_completed ?? false);
+
+        if ($key === 'aktivitas-2-1-obe' && $completed) {
+            $newFactorFields = [
+                'k2a_rincian_k',
+                'k2b_rincian_k',
+                'k3a_rincian_k',
+                'k3b_rincian_k',
+            ];
+
+            $hasPendingFactorField = collect($newFactorFields)
+                ->contains(function (string $field) use ($answers, $feedback): bool {
+                    $fieldFeedback = is_array($feedback[$field] ?? null)
+                        ? $feedback[$field]
+                        : [];
+
+                    return ! array_key_exists($field, $answers)
+                        || empty($fieldFeedback['is_correct'])
+                        || ! empty($fieldFeedback['is_revealed']);
+                });
+
+            if ($hasPendingFactorField) {
+                $completed = false;
+            }
+        }
+
         return [
             'answers' => $answers,
             'feedback' => $feedback,
-            'completed' => (bool) ($submission?->is_completed ?? false),
+            'completed' => $completed,
             'assisted' => ($meta['completion_mode'] ?? null) === 'bantuan',
             'attempts' => max(0, min(3, (int) ($meta['attempts'] ?? 0))),
+            'score' => max(0, (int) ($submission?->score ?? 0)),
+            'max_score' => max(0, (int) ($submission?->max_score ?? 0)),
         ];
     };
 
@@ -891,7 +920,8 @@
                         <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
                             <p class="text-sm font-bold text-slate-700">Rincian perhitungan Baris-2 yang baru</p>
                             <div class="obe-calculation-stack mt-3 space-y-3 overflow-x-auto text-center text-sm">
-                                <div>\(B_2 \leftarrow\) {!! $matrix($aktivitas21, [[['field' => 'k2a_rincian_awal_21'], ['field' => 'k2a_rincian_awal_22'], ['field' => 'k2a_rincian_awal_23'], ['field' => 'k2a_rincian_awal_24']]], 'Rincian awal kasus 2a') !!}</div>
+                                {{-- AKTIVITAS_21_RINCIAN_PENGALI_V1 --}}
+                                <div>\(B_2 \leftarrow\) {!! $fieldInput($aktivitas21, 'k2a_rincian_k', 'Kasus 2a, konstanta pengali pada rincian', 'h-10 w-20') !!} {!! $matrix($aktivitas21, [[['field' => 'k2a_rincian_awal_21'], ['field' => 'k2a_rincian_awal_22'], ['field' => 'k2a_rincian_awal_23'], ['field' => 'k2a_rincian_awal_24']]], 'Rincian awal kasus 2a') !!}</div>
                                 <div>\(B_2 \leftarrow\) {!! $matrix($aktivitas21, [[['field' => 'k2a_rincian_hasil_21'], ['field' => 'k2a_rincian_hasil_22'], ['field' => 'k2a_rincian_hasil_23'], ['field' => 'k2a_rincian_hasil_24']]], 'Rincian hasil kasus 2a') !!}</div>
                             </div>
                         </div>
@@ -939,7 +969,7 @@
                         <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
                             <p class="text-sm font-bold text-slate-700">Rincian perhitungan Baris-2 yang baru</p>
                             <div class="obe-calculation-stack mt-3 space-y-3 overflow-x-auto text-center text-sm">
-                                <div>\(B_2 \leftarrow\) {!! $matrix($aktivitas21, [[['field' => 'k2b_rincian_awal_21'], ['field' => 'k2b_rincian_awal_22'], ['field' => 'k2b_rincian_awal_23'], ['field' => 'k2b_rincian_awal_24']]], 'Rincian awal kasus 2b') !!}</div>
+                                <div>\(B_2 \leftarrow\) {!! $fieldInput($aktivitas21, 'k2b_rincian_k', 'Kasus 2b, konstanta pengali pada rincian', 'h-10 w-20') !!} {!! $matrix($aktivitas21, [[['field' => 'k2b_rincian_awal_21'], ['field' => 'k2b_rincian_awal_22'], ['field' => 'k2b_rincian_awal_23'], ['field' => 'k2b_rincian_awal_24']]], 'Rincian awal kasus 2b') !!}</div>
                                 <div>\(B_2 \leftarrow\) {!! $matrix($aktivitas21, [[['field' => 'k2b_rincian_hasil_21'], ['field' => 'k2b_rincian_hasil_22'], ['field' => 'k2b_rincian_hasil_23'], ['field' => 'k2b_rincian_hasil_24']]], 'Rincian hasil kasus 2b') !!}</div>
                             </div>
                         </div>
@@ -984,7 +1014,7 @@
                             <label class="block text-sm font-bold text-slate-700">Konstanta pengali lawan, \(k\)
                                 {!! $fieldInput($aktivitas21, 'k3a_k', 'Kasus 3a, konstanta pengali') !!}
                             </label>
-                            <label class="block text-sm font-bold text-slate-700">Notasi operasi
+                            <label class="block min-w-0 w-full sm:col-span-2 text-sm font-bold text-slate-700">Notasi operasi
                                 {!! $fieldInput($aktivitas21, 'k3a_notasi', 'Kasus 3a, notasi operasi') !!}
                             </label>
                         </div>
@@ -992,7 +1022,7 @@
                         <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
                             <p class="text-sm font-bold text-slate-700">Rincian perhitungan Baris-2 yang baru</p>
                             <div class="obe-calculation-stack mt-3 space-y-3 overflow-x-auto text-center text-sm">
-                                <div>\(B_2 \leftarrow\) {!! $matrix($aktivitas21, [[['field' => 'k3a_rincian_acuan_11'], ['field' => 'k3a_rincian_acuan_12'], ['field' => 'k3a_rincian_acuan_13']]], 'Baris acuan kasus 3a') !!} \(+\) {!! $matrix($aktivitas21, [[['field' => 'k3a_rincian_target_21'], ['field' => 'k3a_rincian_target_22'], ['field' => 'k3a_rincian_target_23']]], 'Baris target awal kasus 3a') !!}</div>
+                                <div>\(B_2 \leftarrow\) {!! $fieldInput($aktivitas21, 'k3a_rincian_k', 'Kasus 3a, konstanta pengali lawan pada rincian', 'h-10 w-20') !!} {!! $matrix($aktivitas21, [[['field' => 'k3a_rincian_acuan_11'], ['field' => 'k3a_rincian_acuan_12'], ['field' => 'k3a_rincian_acuan_13']]], 'Baris acuan kasus 3a') !!} \(+\) {!! $matrix($aktivitas21, [[['field' => 'k3a_rincian_target_21'], ['field' => 'k3a_rincian_target_22'], ['field' => 'k3a_rincian_target_23']]], 'Baris target awal kasus 3a') !!}</div>
                                 <div>\(B_2 \leftarrow\) {!! $matrix($aktivitas21, [[['field' => 'k3a_rincian_kali_21'], ['field' => 'k3a_rincian_kali_22'], ['field' => 'k3a_rincian_kali_23']]], 'Hasil kali kasus 3a') !!} \(+\) {!! $matrix($aktivitas21, [[['field' => 'k3a_rincian_jumlah_target_21'], ['field' => 'k3a_rincian_jumlah_target_22'], ['field' => 'k3a_rincian_jumlah_target_23']]], 'Baris target penjumlahan kasus 3a') !!}</div>
                                 <div>\(B_2 \leftarrow\) {!! $matrix($aktivitas21, [[['field' => 'k3a_rincian_hasil_21'], ['field' => 'k3a_rincian_hasil_22'], ['field' => 'k3a_rincian_hasil_23']]], 'Hasil rincian kasus 3a') !!}</div>
                             </div>
@@ -1031,7 +1061,7 @@
                             <label class="block text-sm font-bold text-slate-700">Konstanta pengali lawan, \(k\)
                                 {!! $fieldInput($aktivitas21, 'k3b_k', 'Kasus 3b, konstanta pengali') !!}
                             </label>
-                            <label class="block text-sm font-bold text-slate-700">Notasi operasi
+                            <label class="block min-w-0 w-full sm:col-span-2 text-sm font-bold text-slate-700">Notasi operasi
                                 {!! $fieldInput($aktivitas21, 'k3b_notasi', 'Kasus 3b, notasi operasi') !!}
                             </label>
                         </div>
@@ -1039,7 +1069,7 @@
                         <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
                             <p class="text-sm font-bold text-slate-700">Rincian perhitungan Baris-2 yang baru</p>
                             <div class="obe-calculation-stack mt-3 space-y-3 overflow-x-auto text-center text-sm">
-                                <div>\(B_2 \leftarrow\) {!! $matrix($aktivitas21, [[['field' => 'k3b_rincian_acuan_11'], ['field' => 'k3b_rincian_acuan_12'], ['field' => 'k3b_rincian_acuan_13']]], 'Baris acuan kasus 3b') !!} \(+\) {!! $matrix($aktivitas21, [[['field' => 'k3b_rincian_target_21'], ['field' => 'k3b_rincian_target_22'], ['field' => 'k3b_rincian_target_23']]], 'Baris target awal kasus 3b') !!}</div>
+                                <div>\(B_2 \leftarrow\) {!! $fieldInput($aktivitas21, 'k3b_rincian_k', 'Kasus 3b, konstanta pengali lawan pada rincian', 'h-10 w-20') !!} {!! $matrix($aktivitas21, [[['field' => 'k3b_rincian_acuan_11'], ['field' => 'k3b_rincian_acuan_12'], ['field' => 'k3b_rincian_acuan_13']]], 'Baris acuan kasus 3b') !!} \(+\) {!! $matrix($aktivitas21, [[['field' => 'k3b_rincian_target_21'], ['field' => 'k3b_rincian_target_22'], ['field' => 'k3b_rincian_target_23']]], 'Baris target awal kasus 3b') !!}</div>
                                 <div>\(B_2 \leftarrow\) {!! $matrix($aktivitas21, [[['field' => 'k3b_rincian_kali_21'], ['field' => 'k3b_rincian_kali_22'], ['field' => 'k3b_rincian_kali_23']]], 'Hasil kali kasus 3b') !!} \(+\) {!! $matrix($aktivitas21, [[['field' => 'k3b_rincian_jumlah_target_21'], ['field' => 'k3b_rincian_jumlah_target_22'], ['field' => 'k3b_rincian_jumlah_target_23']]], 'Baris target penjumlahan kasus 3b') !!}</div>
                                 <div>\(B_2 \leftarrow\) {!! $matrix($aktivitas21, [[['field' => 'k3b_rincian_hasil_21'], ['field' => 'k3b_rincian_hasil_22'], ['field' => 'k3b_rincian_hasil_23']]], 'Hasil rincian kasus 3b') !!}</div>
                             </div>
@@ -1078,6 +1108,42 @@
         </form>
     </section>
 
+    {{-- SUBBAB22_ACTIVITY_RESULT_CARD_V1 --}}
+    @if ($aktivitas21['completed'])
+        @php
+            $aktivitas21MaxScore = max(1, (int) ($aktivitas21['max_score'] ?? 100));
+            $aktivitas21Score = max(0, min(
+                $aktivitas21MaxScore,
+                (int) ($aktivitas21['score'] ?? 0)
+            ));
+        @endphp
+
+        <div class="rounded-2xl border border-green-200 bg-green-50 p-5 shadow-sm sm:flex sm:items-center sm:justify-between sm:gap-6">
+            <div class="flex items-start gap-4">
+                <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-green-100 text-xl font-black text-green-700">
+                    ✓
+                </div>
+
+                <div>
+                    <p class="font-black text-green-900">Hasil Aktivitas 2.1</p>
+                    <p class="mt-1 text-sm leading-6 text-green-700">
+                        {{ $aktivitas21['assisted']
+                            ? 'Aktivitas telah diselesaikan dengan bantuan. Nilai dihitung dari bagian yang berhasil dikerjakan secara mandiri.'
+                            : 'Aktivitas telah diselesaikan secara mandiri.' }}
+                    </p>
+                </div>
+            </div>
+
+            <div class="mt-4 shrink-0 rounded-2xl bg-white px-5 py-4 text-center shadow-sm sm:mt-0">
+                <p class="text-[11px] font-black uppercase tracking-wide text-slate-500">
+                    Nilai Aktivitas
+                </p>
+                <p class="mt-1 text-2xl font-black text-green-700">
+                    {{ $aktivitas21Score }}/{{ $aktivitas21MaxScore }}
+                </p>
+            </div>
+        </div>
+    @endif
     <div class="rounded-2xl border border-cyan-200 bg-cyan-50 p-5">
         <h3 class="text-base font-black text-cyan-950">Catatan Penting</h3>
         <p class="mt-2 text-sm leading-7 text-cyan-900">
@@ -1147,40 +1213,85 @@
 
 <script>
     (function () {
+        /* SUBBAB22_OPERATION_SERIALIZER_V2 */
         function latexToStoredValue(latex) {
             let value = String(latex || '');
 
+            /*
+            | Ubah seluruh variasi pecahan yang mungkin dihasilkan MathLive
+            | sebelum karakter perintah LaTex dihapus.
+            */
+            for (let attempt = 0; attempt < 5; attempt += 1) {
+                const before = value;
+
+                value = value
+                    .replace(/\\(?:d?frac|tfrac)\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, '$1/$2')
+                    .replace(/\\(?:d?frac|tfrac)\s*\{([^{}]*)\}\s*([+-]?\d+)/g, '$1/$2')
+                    .replace(/\\(?:d?frac|tfrac)\s*([+-]?\d+)\s*\{([^{}]*)\}/g, '$1/$2')
+                    .replace(/\\(?:d?frac|tfrac)\s*([+-]?\d)\s*([+-]?\d)(?!\d)/g, '$1/$2');
+
+                if (value === before) {
+                    break;
+                }
+            }
+
             value = value
-                .replace(/\\leftrightarrow/g, '↔')
-                .replace(/\\longleftrightarrow/g, '↔')
-                .replace(/\\leftarrow|\\gets|\\longleftarrow/g, '←');
-
-            let previousValue;
-
-            do {
-                previousValue = value;
-                value = value.replace(/\\(?:d?frac)\{([^{}]*)\}\{([^{}]*)\}/g, '$1/$2');
-            } while (value !== previousValue);
-
-            return value
-                .replace(/\\left|\\right/g, '')
-                .replace(/\\cdot/g, '')
-                .replace(/\\,/g, ' ')
-                .replace(/[{}]/g, '')
-                .replace(/\\/g, '')
+                .replace(/\\(?:mathrm|mathit|operatorname|text)\s*\{([^{}]*)\}/g, '$1')
+                .replace(/\\leftrightarrow|\\longleftrightarrow/g, '↔')
+                .replace(/\\longleftarrow|\\leftarrow|\\gets/g, '←')
+                .replace(/\\longrightarrow|\\rightarrow/g, '→')
+                .replace(/\\left|\\right|\\bigl|\\bigr|\\Bigl|\\Bigr/g, '')
+                .replace(/\\,|\\;|\\:|\\!|\\quad|\\qquad|~/g, '')
+                .replace(/\\cdot|\\times|·|×/g, '')
+                .replace(/[{}\\]/g, '')
+                .replace(/[₁₂₃₄]/g, (symbol) => ({ '₁': '1', '₂': '2', '₃': '3', '₄': '4' }[symbol]))
+                .replace(/[−–—]/g, '-')
                 .replace(/\s+/g, '')
                 .trim();
+
+            return value;
+        }
+
+        function readObeOperationLatex(mathField) {
+            if (! mathField) {
+                return '';
+            }
+
+            try {
+                if (typeof mathField.getValue === 'function') {
+                    const latex = mathField.getValue('latex');
+
+                    if (latex) {
+                        return latex;
+                    }
+                }
+            } catch (error) {
+                // Gunakan fallback value MathLive di bawah ini.
+            }
+
+            return mathField.value || mathField.textContent || '';
+        }
+
+        function syncObeOperationValue(mathField) {
+            const hiddenInput = document.getElementById(mathField?.dataset?.hiddenInput || '');
+
+            if (! hiddenInput) {
+                return;
+            }
+
+            /*
+            | SUBBAB22_RAW_LATEX_SUBMISSION_V1
+            | Kirim LaTex mentah dari MathLive. Normalisasi dilakukan oleh
+            | PracticeController agar pecahan dan panah tidak hilang di browser.
+            */
+            hiddenInput.value = readObeOperationLatex(mathField);
+            hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
         }
 
         function initialiseMathLiveOperations() {
             document.querySelectorAll('[data-obe-operation-mathfield]').forEach(function (mathField) {
                 if (mathField.dataset.obeInitialised === 'true') {
-                    return;
-                }
-
-                const hiddenInput = document.getElementById(mathField.dataset.hiddenInput);
-
-                if (! hiddenInput) {
+                    syncObeOperationValue(mathField);
                     return;
                 }
 
@@ -1189,17 +1300,20 @@
                 }
 
                 const syncHiddenValue = function () {
-                    hiddenInput.value = latexToStoredValue(mathField.getValue('latex'));
-                    hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    syncObeOperationValue(mathField);
                 };
 
                 mathField.addEventListener('input', syncHiddenValue);
                 mathField.addEventListener('change', syncHiddenValue);
+                mathField.addEventListener('blur', syncHiddenValue);
                 mathField.dataset.obeInitialised = 'true';
                 syncHiddenValue();
             });
         }
 
+        function syncAllObeOperationValues() {
+            document.querySelectorAll('[data-obe-operation-mathfield]').forEach(syncObeOperationValue);
+        }
         function bootMathLiveOperations() {
             if (window.customElements && customElements.get('math-field')) {
                 initialiseMathLiveOperations();
@@ -1211,6 +1325,13 @@
             }
         }
 
+        document.addEventListener('submit', function (event) {
+            if (! event.target.closest('form')) {
+                return;
+            }
+
+            syncAllObeOperationValues();
+        }, true);
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', bootMathLiveOperations, { once: true });
         } else {

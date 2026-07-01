@@ -100,7 +100,33 @@ class PracticeController extends Controller
 
         $previousComponentStatus = $previousMeta['status'] ?? null;
 
-        if (in_array($previousComponentStatus, ['passed', 'assisted'], true)) {
+        /* AKTIVITAS_21_RINCIAN_PENGALI_REOPEN_V1 */
+        $hasPendingActivity21FactorFields = false;
+
+        if ($practiceKey === 'aktivitas-2-1-obe') {
+            $activity21FactorFields = [
+                'k2a_rincian_k',
+                'k2b_rincian_k',
+                'k3a_rincian_k',
+                'k3b_rincian_k',
+            ];
+
+            $hasPendingActivity21FactorFields = collect($activity21FactorFields)
+                ->contains(function (string $fieldKey) use ($storedAnswers, $previousFields): bool {
+                    $fieldFeedback = is_array($previousFields[$fieldKey] ?? null)
+                        ? $previousFields[$fieldKey]
+                        : [];
+
+                    return ! array_key_exists($fieldKey, $storedAnswers)
+                        || empty($fieldFeedback['is_correct'])
+                        || ! empty($fieldFeedback['is_revealed']);
+                });
+        }
+
+        if (
+            in_array($previousComponentStatus, ['passed', 'assisted'], true)
+            && ! $hasPendingActivity21FactorFields
+        ) {
             return back()
                 ->withInput()
                 ->with(
@@ -393,6 +419,41 @@ class PracticeController extends Controller
             return [
                 'is_correct' => $selected === $accepted,
                 'option_statuses' => $this->optionStatuses($answer, $question['accepted_answers']),
+            ];
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | OBE_OPERATION_NORMALIZER_V1
+        |--------------------------------------------------------------------------
+        | Notasi MathLive dapat dikirim sebagai LaTex mentah atau teks biasa.
+        | Untuk notasi yang memakai panah kiri, samakan bentuk \frac, \gets,
+        | \leftarrow, \unicode{x2190}, dan variasi lain sebelum dibandingkan.
+        */
+        $isOperationNotation = str_contains(
+            (string) ($question['display_answer'] ?? ''),
+            '←'
+        );
+
+        if ($isOperationNotation) {
+            $studentAnswer = $this->normalizeObeOperation($answer);
+            $acceptedAnswers = collect($question['accepted_answers'])
+                ->map(fn ($accepted) => $this->normalizeObeOperation($accepted))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            $studentWithoutArrow = str_replace('←', '', $studentAnswer);
+            $acceptedWithoutArrow = array_map(
+                fn ($accepted) => str_replace('←', '', $accepted),
+                $acceptedAnswers
+            );
+
+            return [
+                'is_correct' => in_array($studentAnswer, $acceptedAnswers, true)
+                    || in_array($studentWithoutArrow, $acceptedWithoutArrow, true),
+                'option_statuses' => [],
             ];
         }
 
@@ -1427,22 +1488,22 @@ class PracticeController extends Controller
                     ],
                     'kasus_2a' => [
                         'number' => 2,
-                        'fields' => ['k2a_i', 'k2a_k', 'k2a_notasi', 'k2a_21', 'k2a_22', 'k2a_23', 'k2a_24'],
+                        'fields' => ['k2a_i', 'k2a_k', 'k2a_rincian_k', 'k2a_notasi', 'k2a_21', 'k2a_22', 'k2a_23', 'k2a_24'],
                         'points' => 20,
                     ],
                     'kasus_2b' => [
                         'number' => 3,
-                        'fields' => ['k2b_i', 'k2b_k', 'k2b_notasi', 'k2b_21', 'k2b_22', 'k2b_23', 'k2b_24'],
+                        'fields' => ['k2b_i', 'k2b_k', 'k2b_rincian_k', 'k2b_notasi', 'k2b_21', 'k2b_22', 'k2b_23', 'k2b_24'],
                         'points' => 20,
                     ],
                     'kasus_3a' => [
                         'number' => 4,
-                        'fields' => ['k3a_i', 'k3a_j', 'k3a_k', 'k3a_notasi', 'k3a_21', 'k3a_22', 'k3a_23'],
+                        'fields' => ['k3a_i', 'k3a_j', 'k3a_k', 'k3a_rincian_k', 'k3a_notasi', 'k3a_21', 'k3a_22', 'k3a_23'],
                         'points' => 20,
                     ],
                     'kasus_3b' => [
                         'number' => 5,
-                        'fields' => ['k3b_i', 'k3b_j', 'k3b_k', 'k3b_notasi', 'k3b_21', 'k3b_22', 'k3b_23'],
+                        'fields' => ['k3b_i', 'k3b_j', 'k3b_k', 'k3b_rincian_k', 'k3b_notasi', 'k3b_21', 'k3b_22', 'k3b_23'],
                         'points' => 20,
                     ],
                 ],
@@ -1465,6 +1526,7 @@ class PracticeController extends Controller
 
                     'k2a_i' => ['accepted_answers' => ['2', 'baris 2', 'baris ke-2'], 'display_answer' => '2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Target berada pada Baris-2.'],
                     'k2a_k' => ['accepted_answers' => ['-1/3', '-1 per 3', '-0.3333333333'], 'display_answer' => '-1/3', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Kebalikan perkalian dari -3 adalah -1/3.'],
+                    'k2a_rincian_k' => ['accepted_answers' => ['-1/3', '-1 per 3', '-0.3333333333'], 'display_answer' => '-1/3', 'feedback_correct' => 'Benar. Konstanta pengali pada rincian adalah -1/3.', 'feedback_wrong' => 'Gunakan konstanta pengali -1/3 seperti pada notasi operasi.'],
                     'k2a_notasi' => ['accepted_answers' => ['b2←-1/3b2', 'b2<- -1/3b2', 'b_2←-1/3b_2', 'b_2<- -1/3b_2'], 'display_answer' => 'B2 ← -1/3 B2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Kalikan Baris-2 dengan -1/3.'],
                     'k2a_21' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '0 dikalikan -1/3 tetap 0.'],
                     'k2a_22' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '-3 dikalikan -1/3 bernilai 1.'],
@@ -1473,6 +1535,7 @@ class PracticeController extends Controller
 
                     'k2b_i' => ['accepted_answers' => ['2', 'baris 2', 'baris ke-2'], 'display_answer' => '2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Target berada pada Baris-2.'],
                     'k2b_k' => ['accepted_answers' => ['-4/3', '-4 per 3', '-1.3333333333'], 'display_answer' => '-4/3', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Kebalikan perkalian dari -3/4 adalah -4/3.'],
+                    'k2b_rincian_k' => ['accepted_answers' => ['-4/3', '-4 per 3', '-1.3333333333'], 'display_answer' => '-4/3', 'feedback_correct' => 'Benar. Konstanta pengali pada rincian adalah -4/3.', 'feedback_wrong' => 'Gunakan konstanta pengali -4/3 seperti pada notasi operasi.'],
                     'k2b_notasi' => ['accepted_answers' => ['b2←-4/3b2', 'b2<- -4/3b2', 'b_2←-4/3b_2', 'b_2<- -4/3b_2'], 'display_answer' => 'B2 ← -4/3 B2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Kalikan Baris-2 dengan -4/3.'],
                     'k2b_21' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '0 dikalikan -4/3 tetap 0.'],
                     'k2b_22' => ['accepted_answers' => ['1'], 'display_answer' => '1', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '-3/4 dikalikan -4/3 bernilai 1.'],
@@ -1482,6 +1545,7 @@ class PracticeController extends Controller
                     'k3a_i' => ['accepted_answers' => ['2', 'baris 2', 'baris ke-2'], 'display_answer' => '2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Elemen 3 yang ingin dinolkan berada pada Baris-2.'],
                     'k3a_j' => ['accepted_answers' => ['1', 'baris 1', 'baris ke-1'], 'display_answer' => '1', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Gunakan Baris-1 yang memiliki elemen awal 1.'],
                     'k3a_k' => ['accepted_answers' => ['-3'], 'display_answer' => '-3', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Lawan dari 3 adalah -3.'],
+                    'k3a_rincian_k' => ['accepted_answers' => ['-3'], 'display_answer' => '-3', 'feedback_correct' => 'Benar. Konstanta pengali lawan pada rincian adalah -3.', 'feedback_wrong' => 'Gunakan konstanta pengali lawan -3 sebelum Baris-1.'],
                     'k3a_notasi' => ['accepted_answers' => ['b2←-3b1+b2', 'b2<- -3b1+b2', 'b_2←-3b_1+b_2', 'b_2<- -3b_1+b_2'], 'display_answer' => 'B2 ← -3B1 + B2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Gunakan -3B1 lalu tambahkan ke B2.'],
                     'k3a_21' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '-3(1) + 3 bernilai 0.'],
                     'k3a_22' => ['accepted_answers' => ['-14'], 'display_answer' => '-14', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '-3(4) + (-2) bernilai -14.'],
@@ -1490,6 +1554,7 @@ class PracticeController extends Controller
                     'k3b_i' => ['accepted_answers' => ['2', 'baris 2', 'baris ke-2'], 'display_answer' => '2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Elemen -2/3 yang ingin dinolkan berada pada Baris-2.'],
                     'k3b_j' => ['accepted_answers' => ['1', 'baris 1', 'baris ke-1'], 'display_answer' => '1', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Gunakan Baris-1 yang memiliki elemen awal 1.'],
                     'k3b_k' => ['accepted_answers' => ['2/3', '2 per 3', '0.6666666667'], 'display_answer' => '2/3', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Lawan dari -2/3 adalah 2/3.'],
+                    'k3b_rincian_k' => ['accepted_answers' => ['2/3', '2 per 3', '0.6666666667'], 'display_answer' => '2/3', 'feedback_correct' => 'Benar. Konstanta pengali lawan pada rincian adalah 2/3.', 'feedback_wrong' => 'Gunakan konstanta pengali lawan 2/3 sebelum Baris-1.'],
                     'k3b_notasi' => ['accepted_answers' => ['b2←2/3b1+b2', 'b2<-2/3b1+b2', 'b_2←2/3b_1+b_2', 'b_2<-2/3b_1+b_2'], 'display_answer' => 'B2 ← 2/3 B1 + B2', 'feedback_correct' => 'Benar.', 'feedback_wrong' => 'Gunakan 2/3 B1 lalu tambahkan ke B2.'],
                     'k3b_21' => ['accepted_answers' => ['0'], 'display_answer' => '0', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '2/3(1) + (-2/3) bernilai 0.'],
                     'k3b_22' => ['accepted_answers' => ['9'], 'display_answer' => '9', 'feedback_correct' => 'Benar.', 'feedback_wrong' => '2/3(6) + 5 bernilai 9.'],
@@ -1499,9 +1564,69 @@ class PracticeController extends Controller
         };
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | OBE_OPERATION_NORMALIZER_V1
+    |--------------------------------------------------------------------------
+    */
+    private function normalizeObeOperation(mixed $value): string
+    {
+        $normalized = $this->normalize($value);
+
+        $normalized = str_replace(
+            [
+                'longleftarrow',
+                'leftarrow',
+                'gets',
+                'larr',
+                'unicode2190',
+                'unicodex2190',
+                'char2190',
+                'u2190',
+                'x2190',
+                '<--',
+                '<-',
+                '⟵',
+            ],
+            '←',
+            $normalized
+        );
+
+        $normalized = preg_replace(
+            '/(?:unicode|char|u|x)?2190/u',
+            '←',
+            $normalized
+        ) ?? $normalized;
+
+        return $normalized;
+    }
     private function normalize(mixed $value): string
     {
         $value = strtolower(trim((string) $value));
+        /*
+        | Normalisasi Notasi Pertukaran dari MathLive
+        | MathLive dapat menyimpan pertukaran sebagai LaTex atau simbol biasa.
+        */
+        /* OBE_MATHLIVE_BIDIRECTIONAL_ARROW_NORMALIZATION_V1 */
+        $value = str_replace(
+            [
+                '\\longleftrightarrow',
+                '\\leftrightarrow',
+                '\\Longleftrightarrow',
+                '\\Leftrightarrow',
+                '\\iff',
+                '<=>',
+                '<->',
+                '⇔',
+                '⟷',
+                '↔',
+            ],
+            [
+                '↔', '↔', '↔', '↔', '↔',
+                '↔', '↔', '↔', '↔', '↔',
+            ],
+            $value
+        );
 
         /*
         | MathLive dapat mengirim beberapa variasi pecahan:
@@ -1827,6 +1952,7 @@ class PracticeController extends Controller
             ],
 
             'aktivitas-2-1-obe' => [
+                /* AKTIVITAS_21_ACTIVE_DEFINITION_FIX_V1 */
                 'title' => 'Aktivitas 2.1 - Latihan Mandiri Operasi Baris Elementer',
                 'type' => 'aktivitas',
                 'definition_version' => 'subbab22_obe_revisi_v2',
@@ -1845,7 +1971,7 @@ class PracticeController extends Controller
                     'k2a' => [
                         'number' => 2,
                         'fields' => [
-                            'k2a_i', 'k2a_k', 'k2a_notasi',
+                            'k2a_i', 'k2a_k', 'k2a_rincian_k', 'k2a_notasi',
                             'k2a_rincian_awal_21', 'k2a_rincian_awal_22', 'k2a_rincian_awal_23', 'k2a_rincian_awal_24',
                             'k2a_rincian_hasil_21', 'k2a_rincian_hasil_22', 'k2a_rincian_hasil_23', 'k2a_rincian_hasil_24',
                             'k2a_11', 'k2a_12', 'k2a_13', 'k2a_14',
@@ -1857,7 +1983,7 @@ class PracticeController extends Controller
                     'k2b' => [
                         'number' => 3,
                         'fields' => [
-                            'k2b_i', 'k2b_k', 'k2b_notasi',
+                            'k2b_i', 'k2b_k', 'k2b_rincian_k', 'k2b_notasi',
                             'k2b_rincian_awal_21', 'k2b_rincian_awal_22', 'k2b_rincian_awal_23', 'k2b_rincian_awal_24',
                             'k2b_rincian_hasil_21', 'k2b_rincian_hasil_22', 'k2b_rincian_hasil_23', 'k2b_rincian_hasil_24',
                             'k2b_11', 'k2b_12', 'k2b_13', 'k2b_14',
@@ -1869,7 +1995,7 @@ class PracticeController extends Controller
                     'k3a' => [
                         'number' => 4,
                         'fields' => [
-                            'k3a_i', 'k3a_j', 'k3a_k', 'k3a_notasi',
+                            'k3a_i', 'k3a_j', 'k3a_k', 'k3a_rincian_k', 'k3a_notasi',
                             'k3a_rincian_acuan_11', 'k3a_rincian_acuan_12', 'k3a_rincian_acuan_13',
                             'k3a_rincian_target_21', 'k3a_rincian_target_22', 'k3a_rincian_target_23',
                             'k3a_rincian_kali_21', 'k3a_rincian_kali_22', 'k3a_rincian_kali_23',
@@ -1883,7 +2009,7 @@ class PracticeController extends Controller
                     'k3b' => [
                         'number' => 5,
                         'fields' => [
-                            'k3b_i', 'k3b_j', 'k3b_k', 'k3b_notasi',
+                            'k3b_i', 'k3b_j', 'k3b_k', 'k3b_rincian_k', 'k3b_notasi',
                             'k3b_rincian_acuan_11', 'k3b_rincian_acuan_12', 'k3b_rincian_acuan_13',
                             'k3b_rincian_target_21', 'k3b_rincian_target_22', 'k3b_rincian_target_23',
                             'k3b_rincian_kali_21', 'k3b_rincian_kali_22', 'k3b_rincian_kali_23',
@@ -1911,6 +2037,7 @@ class PracticeController extends Controller
 
                     'k2a_i' => $question(['2', 'baris 2', 'baris ke-2'], '2', 'Elemen target berada pada Baris-2.'),
                     'k2a_k' => $question(['-1/3', '-1 per 3'], '-1/3', 'Kebalikan perkalian dari -3 adalah -1/3.'),
+                    'k2a_rincian_k' => $question(['-1/3', '-1 per 3'], '-1/3', 'Gunakan konstanta pengali -1/3 sebelum Baris-2.'),
                     'k2a_notasi' => $question(
                         ['b2←-1/3b2', 'b2<--1/3b2', 'b_2←-1/3b_2', 'b_2<--1/3b_2'],
                         'B2 ← -1/3 B2',
@@ -1926,6 +2053,7 @@ class PracticeController extends Controller
 
                     'k2b_i' => $question(['2', 'baris 2', 'baris ke-2'], '2', 'Elemen target berada pada Baris-2.'),
                     'k2b_k' => $question(['-4/3', '-4 per 3'], '-4/3', 'Kebalikan perkalian dari -3/4 adalah -4/3.'),
+                    'k2b_rincian_k' => $question(['-4/3', '-4 per 3'], '-4/3', 'Gunakan konstanta pengali -4/3 sebelum Baris-2.'),
                     'k2b_notasi' => $question(
                         ['b2←-4/3b2', 'b2<--4/3b2', 'b_2←-4/3b_2', 'b_2<--4/3b_2'],
                         'B2 ← -4/3 B2',
@@ -1942,6 +2070,7 @@ class PracticeController extends Controller
                     'k3a_i' => $question(['2', 'baris 2', 'baris ke-2'], '2', 'Elemen 3 yang ingin dinolkan berada pada Baris-2.'),
                     'k3a_j' => $question(['1', 'baris 1', 'baris ke-1'], '1', 'Gunakan Baris-1 sebagai baris acuan.'),
                     'k3a_k' => $question(['-3'], '-3', 'Lawan dari 3 adalah -3.'),
+                    'k3a_rincian_k' => $question(['-3'], '-3', 'Gunakan konstanta pengali lawan -3 sebelum Baris-1.'),
                     'k3a_notasi' => $question(
                         ['b2←-3b1+b2', 'b2<--3b1+b2', 'b_2←-3b_1+b_2', 'b_2<--3b_1+b_2'],
                         'B2 ← -3B1 + B2',
@@ -1960,6 +2089,7 @@ class PracticeController extends Controller
                     'k3b_i' => $question(['2', 'baris 2', 'baris ke-2'], '2', 'Elemen -2/3 yang ingin dinolkan berada pada Baris-2.'),
                     'k3b_j' => $question(['1', 'baris 1', 'baris ke-1'], '1', 'Gunakan Baris-1 sebagai baris acuan.'),
                     'k3b_k' => $question(['2/3', '2 per 3'], '2/3', 'Lawan dari -2/3 adalah 2/3.'),
+                    'k3b_rincian_k' => $question(['2/3', '2 per 3'], '2/3', 'Gunakan konstanta pengali lawan 2/3 sebelum Baris-1.'),
                     'k3b_notasi' => $question(
                         ['b2←2/3b1+b2', 'b2<-2/3b1+b2', 'b_2←2/3b_1+b_2', 'b_2<-2/3b_1+b_2'],
                         'B2 ← 2/3 B1 + B2',
