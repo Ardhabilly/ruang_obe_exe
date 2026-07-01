@@ -183,15 +183,49 @@
         || (bool) ($data['canvas_required'] ?? false)
         || $questionType === 'canvas_final_answer';
 
+    /*
+    |--------------------------------------------------------------------------
+    | Susunan Baris MathLive
+    |--------------------------------------------------------------------------
+    | Struktur MathLive yang sudah berupa array, aligned, gathered, atau
+    | matrix tidak dibungkus ulang agar urutan baris sama dengan input
+    | mahasiswa.
+    */
+    /* MATHLIVE_ROW_ORDER_SAFE_V1 */
     $workspaceLatex = $canvasData;
+
     if (
         $workspaceLatex !== ''
-        && ! \Illuminate\Support\Str::contains($workspaceLatex, ['\\begin{array}', '\\begin{aligned}', '\\begin{gathered}', '\\displaylines{'])
+        && ! \Illuminate\Support\Str::contains(
+            $workspaceLatex,
+            [
+                '\\begin{array}',
+                '\\begin{aligned}',
+                '\\begin{alignedat}',
+                '\\begin{gathered}',
+                '\\begin{gather}',
+                '\\begin{split}',
+                '\\begin{cases}',
+                '\\begin{matrix}',
+                '\\begin{bmatrix}',
+                '\\begin{pmatrix}',
+                '\\begin{Bmatrix}',
+                '\\begin{vmatrix}',
+                '\\begin{Vmatrix}',
+                '\\begin{smallmatrix}',
+                '\\displaylines{',
+            ]
+        )
         && \Illuminate\Support\Str::contains($workspaceLatex, '\\\\')
     ) {
-        $workspaceLatex = '\\displaylines{' . $workspaceLatex . '}';
+        /*
+        | Data lama berisi beberapa baris biasa. Array vertikal menjaga
+        | urutan setiap baris tanpa mengubah isi penulisan mahasiswa.
+        */
+        $workspaceLatex = '\\begin{array}{l}'
+            . $workspaceLatex
+            . '\\end{array}';
     }
-
     $legacyCanvasFile = $canvasData !== '' && \Illuminate\Support\Str::startsWith($canvasData, 'quiz-step-files/');
 @endphp
 
@@ -265,7 +299,48 @@
                 </a>
             @elseif ($workspaceLatex !== '')
                 <div class="mt-3 overflow-x-auto rounded-2xl border {{ $valueClass }} p-4">
-                    <math-field read-only virtual-keyboard-mode="off" class="block min-h-[160px] border-0 bg-transparent text-lg shadow-none outline-none">{{ $workspaceLatex }}</math-field>
+                    <div
+    x-data="{ workspaceResultLatex: @js($workspaceLatex) }"
+    x-init="
+        (() => {
+            const applyWorkspaceLatex = () => {
+                const field = $refs.workspaceResultField;
+
+                if (! field) {
+                    return;
+                }
+
+                /*
+                | Nilai diberikan langsung melalui API MathLive, bukan sebagai
+                | teks HTML. Dengan cara ini environment array/aligned serta
+                | pemisah \ yang tersimpan tetap dibaca sebagai baris.
+                */
+                field.value = workspaceResultLatex || '';
+                field.readOnly = true;
+            };
+
+            if (window.customElements && customElements.get('math-field')) {
+                $nextTick(applyWorkspaceLatex);
+            } else if (window.customElements) {
+                customElements.whenDefined('math-field').then(() => {
+                    $nextTick(applyWorkspaceLatex);
+                });
+            }
+        })()
+    "
+    class="min-h-[160px]"
+>
+    {{-- MATHLIVE_RESULT_VALUE_RENDER_V1 --}}
+    <math-field
+        x-ref="workspaceResultField"
+        read-only
+        virtual-keyboard-mode="off"
+        math-virtual-keyboard-policy="manual"
+        smart-mode="off"
+        aria-label="Langkah pengerjaan mahasiswa"
+        class="block min-h-[160px] border-0 bg-transparent text-lg shadow-none outline-none"
+    ></math-field>
+</div>
                 </div>
             @else
                 <div class="mt-3 rounded-xl border border-dashed {{ $emptyClass }} px-4 py-5 text-sm">
