@@ -1603,6 +1603,36 @@ class PracticeController extends Controller
     private function normalize(mixed $value): string
     {
         $value = strtolower(trim((string) $value));
+
+        /* SUBBAB32_OPERATION_MATHLIVE_NORMALIZATION_V1 */
+        /*
+        | MathLive dapat menambahkan pembungkus LaTeX seperti
+        | \mathrel{\leftarrow}, \mathrm{B}, atau \mathord{...}.
+        | Pembungkus tersebut tidak mengubah arti notasi operasi, sehingga
+        | dibuka lebih dahulu sebelum jawaban dibandingkan.
+        */
+        for ($iteration = 0; $iteration < 5; $iteration++) {
+            $beforeOperationNormalization = $value;
+
+            $value = preg_replace_callback(
+                '/\\\\(?:mathrel|mathbin|mathord|mathop|mathrm|mathit|operatorname|text|mathbf|mathsf|mathtt)\s*\{([^{}]*)\}/u',
+                static fn (array $matches): string => $matches[1],
+                $value
+            ) ?? $value;
+
+            if ($value === $beforeOperationNormalization) {
+                break;
+            }
+        }
+
+        $value = str_replace(
+            [
+                '\\displaystyle', '\\textstyle', '\\scriptstyle', '\\scriptscriptstyle',
+                '\\limits', '\\nolimits', '\\mathop', '\\mathrel', '\\mathbin', '\\mathord',
+            ],
+            '',
+            $value
+        );
         /*
         | Normalisasi Notasi Pertukaran dari MathLive
         | MathLive dapat menyimpan pertukaran sebagai LaTex atau simbol biasa.
@@ -2382,7 +2412,7 @@ class PracticeController extends Controller
                     'fase1_target1a_notasi' => $operationQuestion(
                         'B_2',
                         ['B_1 + B_2', 'B_2 + B_1', '1B_1 + B_2'],
-                        'B_2 \leftarrow B_1 + B_2',
+                        'B2 ← B1 + B2',
                         'Gunakan Baris-1 untuk menghilangkan elemen -1 pada Baris-2 Kolom-1.'
                     ),
                     ...$valueQuestions([
@@ -2402,7 +2432,7 @@ class PracticeController extends Controller
                     'fase1_target1b_notasi' => $operationQuestion(
                         'B_3',
                         ['-2B_1 + B_3', 'B_3 - 2B_1', 'B_3 + (-2)B_1'],
-                        'B_3 \leftarrow -2B_1 + B_3',
+                        'B3 ← -2B1 + B3',
                         'Gunakan kelipatan Baris-1 yang membuat 2 pada Baris-3 Kolom-1 menjadi 0.'
                     ),
                     ...$valueQuestions([
@@ -2422,7 +2452,7 @@ class PracticeController extends Controller
                     'fase1_target1c_notasi' => $operationQuestion(
                         'B_4',
                         ['-B_1 + B_4', 'B_4 - B_1', 'B_4 + (-1)B_1'],
-                        'B_4 \leftarrow -B_1 + B_4',
+                        'B4 ← -B1 + B4',
                         'Gunakan Baris-1 untuk menghilangkan elemen 1 pada Baris-4 Kolom-1.'
                     ),
                     ...$valueQuestions([
@@ -2442,7 +2472,7 @@ class PracticeController extends Controller
                     'fase2_pivot_notasi' => $operationQuestion(
                         'B_2',
                         ['\frac{1}{3}B_2', '1/3B_2', '(1/3)B_2', 'B_2/3'],
-                        'B_2 \leftarrow \frac{1}{3}B_2',
+                        'B2 ← 1/3 B2',
                         'Gunakan kebalikan perkalian dari 3 agar elemen utama Baris-2 menjadi 1.'
                     ),
                     ...$valueQuestions([
@@ -2456,7 +2486,7 @@ class PracticeController extends Controller
                     'fase2_target2a_notasi' => $operationQuestion(
                         'B_3',
                         ['B_2 + B_3', 'B_3 + B_2', '1B_2 + B_3'],
-                        'B_3 \leftarrow B_2 + B_3',
+                        'B3 ← B2 + B3',
                         'Gunakan Baris-2 untuk menghilangkan elemen -1 pada Baris-3 Kolom-2.'
                     ),
                     ...$valueQuestions([
@@ -2476,7 +2506,7 @@ class PracticeController extends Controller
                     'fase3_pivot_notasi' => $operationQuestion(
                         'B_3',
                         ['-B_3', '(-1)B_3', '-1B_3'],
-                        'B_3 \leftarrow -B_3',
+                        'B3 ← -B3',
                         'Kalikan Baris-3 dengan -1 agar elemen utama -1 menjadi 1.'
                     ),
                     ...$valueQuestions([
@@ -2490,7 +2520,7 @@ class PracticeController extends Controller
                     'fase3_target3a_notasi' => $operationQuestion(
                         'B_4',
                         ['B_3 + B_4', 'B_4 + B_3', '1B_3 + B_4'],
-                        'B_4 \leftarrow B_3 + B_4',
+                        'B4 ← B3 + B4',
                         'Gunakan Baris-3 untuk menghilangkan elemen -1 pada Baris-4 Kolom-3.'
                     ),
                     ...$valueQuestions([
@@ -2510,7 +2540,7 @@ class PracticeController extends Controller
                     'fase4_pivot_notasi' => $operationQuestion(
                         'B_4',
                         ['-\frac{1}{3}B_4', '-1/3B_4', '(-1/3)B_4', 'B_4/(-3)'],
-                        'B_4 \leftarrow -\frac{1}{3}B_4',
+                        'B4 ← -1/3 B4',
                         'Gunakan kebalikan perkalian dari -3 agar elemen utama Baris-4 menjadi 1.'
                     ),
                     ...$valueQuestions([

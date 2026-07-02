@@ -96,19 +96,38 @@
         );
     };
 
-    /* SUBBAB_3_2_NOTASI_ACUAN_DAHULU_V1
+    /* SUBBAB_3_2_BANTUAN_NOTASI_PLAIN_V2
      *
-     * Pada operasi penjumlahan baris, kelipatan baris acuan ditulis lebih dulu,
-     * kemudian diikuti baris target. Contoh: B3 ← -2B1 + B3.
+     * Jawaban bantuan sengaja memakai penulisan B2/B3/B4 biasa agar sama
+     * dengan bentuk yang diketik mahasiswa pada MathLive. Nilai ini hanya
+     * dipakai untuk tampilan ketika sistem menampilkan bantuan.
+     */
+        /* SUBBAB_3_2_BANTUAN_NOTASI_MATHLIVE_V4
+     *
+     * Nilai berikut adalah LaTeX tampilan untuk MathLive. Penulisan B2/B3/B4
+     * tetap memakai angka biasa (bukan subskrip), sedangkan panah dan pecahan
+     * dirender sama seperti notasi yang diketik mahasiswa pada MathLive.
      */
     $simulation32PreferredRevealedNotation = [
-        'fase1_target1a_notasi' => 'B_2 \\leftarrow B_1 + B_2',
-        'fase1_target1b_notasi' => 'B_3 \\leftarrow -2B_1 + B_3',
-        'fase1_target1c_notasi' => 'B_4 \\leftarrow -B_1 + B_4',
-        'fase2_target2a_notasi' => 'B_3 \\leftarrow B_2 + B_3',
-        'fase3_target3a_notasi' => 'B_4 \\leftarrow B_3 + B_4',
+        'fase1_target1a_notasi' => 'B2 \leftarrow B1 + B2',
+        'fase1_target1b_notasi' => 'B3 \leftarrow -2B1 + B3',
+        'fase1_target1c_notasi' => 'B4 \leftarrow -B1 + B4',
+        'fase2_pivot_notasi' => 'B2 \leftarrow \frac{1}{3} B2',
+        'fase2_target2a_notasi' => 'B3 \leftarrow B2 + B3',
+        'fase3_pivot_notasi' => 'B3 \leftarrow -B3',
+        'fase3_target3a_notasi' => 'B4 \leftarrow B3 + B4',
+        'fase4_pivot_notasi' => 'B4 \leftarrow -\frac{1}{3} B4',
     ];
 
+    /*
+    |--------------------------------------------------------------------------
+    | SUBBAB_3_2_BANTUAN_NOTASI_MATHLIVE_RENDER_V5
+    |--------------------------------------------------------------------------
+    | Jawaban bantuan tetap memakai <math-field>. Nilai LaTeX tidak ditulis
+    | sebagai isi HTML karena akan terlihat mentah, misalnya "\leftarrow".
+    | Nilai diletakkan pada data-operation-latex dan dimasukkan setelah
+    | MathLive siap melalui JavaScript.
+    */
     $operationInput = function (string $fieldKey, string $label) use (
         $simulation32Answers,
         $simulation32Feedback,
@@ -117,11 +136,12 @@
         $simulation32InputLocked
     ) {
         $value = (string) ($simulation32Answers[$fieldKey] ?? '');
+        $isRevealed = ($simulation32Feedback[$fieldKey]['state'] ?? null) === 'revealed';
 
-        if (($simulation32Feedback[$fieldKey]['state'] ?? null) === 'revealed'
-            && isset($simulation32PreferredRevealedNotation[$fieldKey])) {
+        if ($isRevealed && isset($simulation32PreferredRevealedNotation[$fieldKey])) {
             $value = $simulation32PreferredRevealedNotation[$fieldKey];
         }
+
         $hiddenId = 'subbab32-' . $fieldKey . '-hidden';
         $readOnly = $simulation32InputLocked($fieldKey) ? ' read-only' : '';
 
@@ -132,11 +152,11 @@
             . '<math-field'
             . ' data-operation-math-field'
             . ' data-hidden-input="' . e($hiddenId) . '"'
+            . ' data-operation-latex="' . e($value) . '"'
             . ' aria-label="' . e($label) . '"'
             . ' virtual-keyboard-mode="manual"'
             . $readOnly
             . ' class="block min-h-12 w-full overflow-x-auto rounded-xl border-0 bg-transparent px-3 py-2 text-left text-lg font-bold outline-none">'
-            . e($value)
             . '</math-field>'
             . '<input'
             . ' type="hidden"'
@@ -146,7 +166,6 @@
             . '</div>'
         );
     };
-
     $matrixRow = function (array $cells, string $label) use ($fieldInput) {
         $columns = count($cells);
 
@@ -1227,25 +1246,125 @@
     (function () {
         const scrollStorageKey = 'ruangobe:subbab-3-2:scroll-position';
 
+        /* SUBBAB32_OPERATION_INPUT_SYNC_V2 */
+        function normalizeOperationLatex(latex) {
+            let value = String(latex || '');
+
+            for (let iteration = 0; iteration < 5; iteration += 1) {
+                const before = value;
+
+                value = value
+                    .replace(/\\(?:mathrel|mathbin|mathord|mathop|mathrm|mathit|operatorname|text|mathbf|mathsf|mathtt)\s*\{([^{}]*)\}/g, '$1')
+                    .replace(/\\(?:d?frac|tfrac)\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, '$1/$2')
+                    .replace(/\\(?:d?frac|tfrac)\s*\{([^{}]*)\}\s*([+-]?\d+)/g, '$1/$2')
+                    .replace(/\\(?:d?frac|tfrac)\s*([+-]?\d+)\s*\{([^{}]*)\}/g, '$1/$2');
+
+                if (value === before) {
+                    break;
+                }
+            }
+
+            return value
+                .replace(/\\longleftrightarrow|\\leftrightarrow|\\Longleftrightarrow|\\Leftrightarrow|\\iff/g, '↔')
+                .replace(/\\longleftarrow|\\leftarrow|\\gets/g, '←')
+                .replace(/\\longrightarrow|\\rightarrow/g, '→')
+                .replace(/\\displaystyle|\\textstyle|\\scriptstyle|\\scriptscriptstyle|\\limits|\\nolimits/g, '')
+                .replace(/\\left|\\right|\\bigl|\\bigr|\\Bigl|\\Bigr/g, '')
+                .replace(/\\,|\\;|\\:|\\!|\\quad|\\qquad|~/g, '')
+                .replace(/\\cdot|\\times|·|×/g, '')
+                .replace(/[{}\\]/g, '')
+                .replace(/[₁₂₃₄]/g, (symbol) => ({ '₁': '1', '₂': '2', '₃': '3', '₄': '4' }[symbol]))
+                .replace(/[−–—]/g, '-')
+                .replace(/[_*()[\]]/g, '')
+                .replace(/[\u00A0\u2009\u202F]/g, '')
+                .replace(/\s+/g, '')
+                .toLowerCase()
+                .trim();
+        }
+
+        function readOperationLatex(mathField) {
+            if (! mathField) {
+                return '';
+            }
+
+            try {
+                if (typeof mathField.getValue === 'function') {
+                    const latex = mathField.getValue('latex');
+
+                    if (latex) {
+                        return latex;
+                    }
+                }
+            } catch (error) {
+                // Gunakan nilai cadangan MathLive.
+            }
+
+            return mathField.value || mathField.textContent || '';
+        }
+
         function syncMathField(mathField) {
-            const hiddenInput = document.getElementById(mathField.dataset.hiddenInput);
+            const hiddenInput = document.getElementById(mathField?.dataset?.hiddenInput || '');
 
             if (! hiddenInput) {
                 return;
             }
 
-            const syncValue = function () {
-                hiddenInput.value = mathField.getValue('latex');
-                hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
-                hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
-            };
+            hiddenInput.value = normalizeOperationLatex(readOperationLatex(mathField));
+            hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+            hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+        }
 
-            syncValue();
-            mathField.addEventListener('input', syncValue);
-            mathField.addEventListener('change', syncValue);
+        function initialiseMathField(mathField) {
+            if (! mathField) {
+                return;
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Nilai Awal MathLive
+            |--------------------------------------------------------------------------
+            | Atribut data-operation-latex menyimpan LaTeX yang aman untuk
+            | ditampilkan. Nilai harus dipasang melalui API MathLive agar
+            | \leftarrow dan \frac dirender menjadi panah serta pecahan,
+            | bukan ditampilkan sebagai teks mentah.
+            */
+            const initialLatex = String(
+                mathField.dataset.operationLatex || mathField.textContent || ''
+            ).trim();
+
+            if (initialLatex !== '' && mathField.dataset.subbab32LatexApplied !== 'true') {
+                try {
+                    if (typeof mathField.setValue === 'function') {
+                        mathField.setValue(initialLatex);
+                    } else {
+                        mathField.value = initialLatex;
+                    }
+                } catch (error) {
+                    mathField.value = initialLatex;
+                }
+
+                mathField.dataset.subbab32LatexApplied = 'true';
+            }
+
+            if (mathField.dataset.subbab32OperationInitialised !== 'true') {
+                const syncValue = function () {
+                    syncMathField(mathField);
+                };
+
+                mathField.addEventListener('input', syncValue);
+                mathField.addEventListener('change', syncValue);
+                mathField.addEventListener('blur', syncValue);
+                mathField.dataset.subbab32OperationInitialised = 'true';
+            }
+
+            syncMathField(mathField);
         }
 
         const initializeMathFields = function () {
+            document.querySelectorAll('[data-operation-math-field]').forEach(initialiseMathField);
+        };
+
+        const syncAllMathFields = function () {
             document.querySelectorAll('[data-operation-math-field]').forEach(syncMathField);
         };
 
@@ -1255,6 +1374,11 @@
             customElements.whenDefined('math-field').then(initializeMathFields);
         }
 
+        document.addEventListener('submit', function (event) {
+            if (event.target && event.target.matches('[data-practice-scroll-form]')) {
+                syncAllMathFields();
+            }
+        }, true);
         document.querySelectorAll('[data-practice-scroll-form]').forEach(function (form) {
             form.addEventListener('submit', function () {
                 sessionStorage.setItem(scrollStorageKey, String(window.scrollY));
